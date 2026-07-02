@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { buildSignatureManifest, computeSignature } from '@pix-live/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -29,6 +29,21 @@ function stubProvider(orderId: string, amountCents: number): PaymentProvider {
     },
     getPayment: (): Promise<RemotePayment | null> =>
       Promise.resolve({ status: 'approved', externalReference: orderId, amountCents }),
+  };
+}
+
+/** Provider que falha as primeiras `failTimes` chamadas de getPayment e então aprova. */
+function flakyProvider(orderId: string, amountCents: number, failTimes: number): PaymentProvider {
+  let calls = 0;
+  return {
+    createPixCharge: (): Promise<PixCharge> => {
+      throw new Error('não usado no teste');
+    },
+    getPayment: (): Promise<RemotePayment | null> => {
+      calls += 1;
+      if (calls <= failTimes) return Promise.reject(new Error('timeout de rede simulado'));
+      return Promise.resolve({ status: 'approved', externalReference: orderId, amountCents });
+    },
   };
 }
 
@@ -125,5 +140,19 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
     await expect(service.process(bad)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(await prisma.webhookEvent.count()).toBe(0);
     expect(await prisma.orderCredit.count()).toBe(0);
+  });
+
+  it('falha transitória de getPayment → 500; reentrega com MESMO request-id credita (finding 1)', async () => {
+    const flaky = new WebhookService(prisma, fakeConfig, flakyProvider(orderId, 4700, 1));
+    // 1ª entrega: getPayment falha → 500, e NADA é persistido (senão envenenaria o dedupe).
+    await expect(
+      flaky.process(signedInput(PAYMENT_ID, 'req-retry', nowSeconds)),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(await prisma.webhookEvent.count()).toBe(0);
+    expect(await prisma.orderCredit.count()).toBe(0);
+    // Reentrega do MP com o MESMO request-id: agora getPayment sucede → DEVE creditar.
+    const retry = await flaky.process(signedInput(PAYMENT_ID, 'req-retry', nowSeconds));
+    expect(retry.verdict).toBe('processado');
+    expect(await prisma.orderCredit.count()).toBe(1);
   });
 });

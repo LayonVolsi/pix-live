@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import {
+  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -7,8 +8,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, WebhookSource, WebhookVerdict } from '@prisma/client';
-import type { Order } from '@prisma/client';
+import { Prisma, WebhookSource } from '@prisma/client';
+import type { Order, WebhookVerdict } from '@prisma/client';
+
+/** dataId/requestId são persistidos em VARCHAR(255) — teto para evitar P2000. */
+const MAX_ID_LEN = 255;
 import {
   decideVerdict,
   httpStatusForVerdict,
@@ -70,6 +74,14 @@ export class WebhookService {
       throw new UnauthorizedException('assinatura inválida');
     }
 
+    // Guarda de tamanho (pós-autenticação): dataId/requestId vão para VARCHAR(255);
+    // um valor maior (drift do provedor) quebraria o INSERT com P2000 → 500 cru.
+    // Rejeita cedo e controlado. Ver review de segurança, finding 3.
+    if (input.dataId.length > MAX_ID_LEN || (input.requestId?.length ?? 0) > MAX_ID_LEN) {
+      this.logger.warn('Webhook rejeitado: identificador acima de 255 caracteres');
+      throw new BadRequestException('identificador acima do tamanho permitido');
+    }
+
     return this.processAuthenticated({ ...input, dataId: input.dataId }, sig.ts);
   }
 
@@ -86,17 +98,24 @@ export class WebhookService {
     try {
       remote = await this.provider.getPayment(dataId);
     } catch (error) {
-      // Erro de rede/infra ≠ "não existe": 'erro'/500 para o MP reentregar.
+      // Erro transitório de rede/infra ≠ "não existe": devolve 500 para o MP
+      // reentregar. NÃO persiste evento aqui — uma linha `erro` chaveada por
+      // request-id envenenaria o dedupe (a reentrega cairia em duplicata_ignorada
+      // e o pagamento aprovado nunca seria creditado). Ver review, finding 1 (ALTO).
       this.logger.error(
-        'getPayment falhou (rede/infra)',
+        'getPayment falhou (rede/infra) — 500 para reentrega, sem persistir evento',
         error instanceof Error ? error.stack : String(error),
       );
-      await this.recordEvent(input, source, dataId, ts, WebhookVerdict.erro, null, startedAt);
       throw new InternalServerErrorException();
     }
 
     // ── Fatos do banco (o core decide; a rota só apura).
     const order = await this.prisma.order.findUnique({ where: { mpPaymentId: dataId } });
+    // Dedupe da Camada 2 por request-id. Se o header vier ausente (atípico do MP),
+    // o dedupe não se aplica — mas o dinheiro CONTINUA protegido pela Camada 3
+    // (creditAlreadyExists + unique em OrderCredit.mpPaymentId). NÃO usamos um
+    // sentinela compartilhado (ex.: '') para requestId nulo: isso colidiria
+    // pagamentos DIFERENTES sem request-id entre si — pior que o gap. (Review, finding 2.)
     const requestIdAlreadyProcessed =
       input.requestId !== null &&
       (await this.prisma.webhookEvent.findFirst({
