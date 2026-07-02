@@ -262,6 +262,6 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 
 Para honestidade total sobre o que já está no repositório vs. o que segue este README:
 
-- **Pronto e testado:** `packages/core` — o domínio puro que decide "o dinheiro duplica ou não" (assinatura HMAC, idempotência/anti-replay, máquina de estados, formatação de dinheiro), com suíte de testes.
-- **Em construção conforme este spec:** `apps/api`, `apps/web`, o deploy, o **demo ao vivo**, os badges de CI/Scorecard/deploy, os GIFs/screenshots e os documentos `ARCHITECTURE.md` / `SECURITY.md` / `adr/*`.
-- Onde este README diz `<...>` ou "placeholder", o item **ainda não existe** — nada aqui afirma que a demo já está no ar.
+- **Pronto e testado:** `packages/core` — o domínio puro que decide "o dinheiro duplica ou não" (assinatura HMAC, idempotência/anti-replay, máquina de estados, formatação de dinheiro); `apps/api` — o backend completo (webhook das 3 camadas, rotas admin, loja, painel de conciliação e seed), provado por testes de integração contra Postgres real; e os documentos `SECURITY.md`, `ARCHITECTURE.md` e `adr/0001..0004`.
+- **Em construção conforme este spec:** `apps/web` (front), Docker/`docker compose`, a integração real com o sandbox do MP (fixture incluída), o deploy, o **demo ao vivo**, os badges de CI/Scorecard/deploy e os GIFs/screenshots.
+- Onde este README diz `<...>`, "placeholder" ou _planejado_, o item **ainda não existe** — nada aqui afirma que a demo já está no ar.
