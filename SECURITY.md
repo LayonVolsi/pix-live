@@ -13,12 +13,15 @@ auditável**.
 
 ## 0. Postura e escopo
 
-- **É uma demo de sandbox.** O Pix Live usa o **sandbox oficial do Mercado Pago (MP)** e **não
-  processa dinheiro real**. Não há claim de "pronto para produção financeira". Um banner permanente
-  na UI declara isso.
-- **Escopo minúsculo, barra de produção.** O código de domínio (`packages/core`) é puro,
-  determinístico e 100% testado. As garantias de segurança abaixo valem para o pipeline do webhook,
-  a separação de rotas e a cadeia de suprimentos.
+- **É uma demo que não move dinheiro real.** Hoje o Pix Live roda em **modo mock 100% offline**
+  (nenhuma chamada de saída); a integração com o **sandbox oficial do Mercado Pago (MP)** é a
+  fase 4 (_planejado_ — o boot proíbe `PAYMENT_PROVIDER=mercadopago` até o adapter existir,
+  `payment.module.ts`). Não há claim de "pronto para produção financeira". O banner permanente na
+  UI declarando isso entra com o front (_planejado_).
+- **Escopo minúsculo, barra de produção.** O código de domínio (`packages/core`) é puro e
+  determinístico, com cobertura **≥90% imposta no CI**. As garantias de segurança abaixo valem
+  para o pipeline do webhook, a separação de rotas e a cadeia de suprimentos — o que ainda não
+  existe está marcado como _planejado_.
 - **O que esta demo NÃO tenta defender** (não-objetivos declarados — ver §9): não há autenticação de
   usuário final, não há proteção de dados financeiros reais, e as ações administrativas são
   protegidas por um token **explicitamente não-secreto** para dar fricção zero ao avaliador. Isso é
@@ -28,17 +31,20 @@ auditável**.
 
 ## 1. Ativos protegidos
 
-| Ativo                                                             | Por que importa                                             | Ameaça principal                                         |
-| ----------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
-| **Corretude do crédito do pedido** ("dinheiro não duplica")       | É a promessa central do produto                             | Entrega duplicada do provedor creditando 2×              |
-| **Autenticidade do webhook**                                      | Só o MP pode confirmar um pagamento                         | Forjar um webhook e marcar pedido como pago sem pagar    |
-| **Segredo do webhook (`MP_WEBHOOK_SECRET`)** e access token do MP | Comprometê-los quebra a Camada 1 e permite agir como a loja | Vazamento em código, log, `.env` ou history              |
-| **PII do pagador (e-mail)**                                       | LGPD / exposição de dado pessoal a visitante anônimo        | Vazamento no painel público de conciliação               |
-| **Integridade da cadeia de suprimentos**                          | Dependência ou GitHub Action comprometida injeta código     | Typosquatting, tag mutável sequestrada, action maliciosa |
+| Ativo                                                                           | Por que importa                                             | Ameaça principal                                         |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| **Corretude do crédito do pedido** ("dinheiro não duplica")                     | É a promessa central do produto                             | Entrega duplicada do provedor creditando 2×              |
+| **Autenticidade do webhook**                                                    | Só o MP pode confirmar um pagamento                         | Forjar um webhook e marcar pedido como pago sem pagar    |
+| **Segredo do webhook (`MP_WEBHOOK_SECRET`)** e, na fase 4, o access token do MP | Comprometê-los quebra a Camada 1 e permite agir como a loja | Vazamento em código, log, `.env` ou history              |
+| **PII do pagador (e-mail)**                                                     | LGPD / exposição de dado pessoal a visitante anônimo        | Vazamento no painel público de conciliação               |
+| **Integridade da cadeia de suprimentos**                                        | Dependência ou GitHub Action comprometida injeta código     | Typosquatting, tag mutável sequestrada, action maliciosa |
 
 ---
 
 ## 2. Fronteiras de confiança e atores
+
+> O diagrama descreve a **arquitetura-alvo**. O site estático (React) e o adapter do MP são
+> _planejados_; hoje o provider é o mock offline, sem nenhuma chamada de saída.
 
 ```
 [ visitante anônimo / avaliador ]
@@ -82,7 +88,7 @@ auditável**.
   Camada 2.
 - **Mercado Pago (sandbox)** — semi-confiável. Prova de autenticidade é o HMAC, não a origem IP.
   Entrega **at-least-once**: o mesmo pagamento pode chegar N vezes. O sistema trata isso como normal.
-- **Rota /admin autenticada** — confiável **apenas para marcar `source='admin-replay'`** na chamada
+- **Rota /admin autenticada** — confiável **apenas para marcar `source='admin_replay'`** na chamada
   em processo ao core. Esse valor **nunca** vem de input HTTP na rota pública.
 - **`packages/core`** — confiável, puro, sem I/O nem framework. Recebe fatos já apurados e decide.
 
@@ -96,8 +102,11 @@ aceita flag/cabeçalho do cliente que relaxe a camada seguinte.
 
 ### Camada 1 — Autenticidade (HMAC-SHA256 em tempo constante)
 
-- Lê o **raw body** (os bytes originais, não o JSON re-serializado — re-serializar quebraria o HMAC),
-  com **cap de tamanho** e **Content-Type validado** antes de qualquer parsing.
+- Lê o **raw body** (os bytes originais, preservados para a trilha de auditoria com fidelidade
+  byte-a-byte — persistidos apenas quando a assinatura é válida; no esquema do MP o HMAC cobre o
+  **manifesto** `id`/`request-id`/`ts`, não o corpo), com **cap de tamanho** no parser. Apenas
+  `application/json` é parseado — corpo em outro formato não produz `data.id` e falha fechado
+  em 401 (comportamento do parser, não uma checagem ativa de Content-Type).
 - Remonta o **manifesto exato** do MP a partir dos componentes (`id`, `request-id`, `ts`) e compara
   o HMAC contra o header `x-signature`.
   - Manifesto: `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` (ver `packages/core/src/signature.ts`).
@@ -113,8 +122,8 @@ aceita flag/cabeçalho do cliente que relaxe a camada seguinte.
 
 ### Camada 2 — Anti-replay (janela de timestamp + dedupe de delivery-id)
 
-- **Dedupe real por `x-request-id`** através de um **índice único parcial** no banco
-  (`WebhookEvent.request_id_header` para `source='mercadopago'`). Um delivery-id já processado →
+- **Dedupe real por `x-request-id`** através de um **unique composto `(source, request_id_header)`**
+  no banco — equivalente, na prática, a um índice parcial por origem. Um delivery-id já processado →
   verdict `duplicata_ignorada`, HTTP 200 (ack), sem re-creditar.
 - **Janela de timestamp GENEROSA (24h)** sobre o campo `ts` — ver a nota honesta em §4. Um `ts` fora
   da janela **com HMAC válido** vira **sinal** (`ts_suspeito`), **não** rejeição.
@@ -167,6 +176,13 @@ Quando a semântica for confirmada, a janela pode ser calibrada (documentado no 
 não for, a postura é **fail-safe para disponibilidade** sem abrir a porta do dinheiro (a Camada 3
 continua garantindo o crédito único).
 
+**Risco aceito — delimitadores do manifesto.** O manifesto interpola `data.id` e `request-id` no
+template `id:...;request-id:...;ts:...;` sem escapar `;`/`:`. Manter o template **byte-a-byte
+idêntico** ao do MP é requisito de compatibilidade com o provedor real (mudá-lo quebraria a
+verificação), e a ambiguidade teórica só seria explorável por quem já possui o segredo do HMAC —
+que domina o vetor por completo. Risco aceito conscientemente; revisitar se o MP mudar o esquema
+de assinatura (ver `adr/0002`).
+
 ---
 
 ## 5. Separação: rota pública vs. rotas `/admin`
@@ -177,23 +193,26 @@ na rota pública de webhook.
 
 - **Rotas admin dedicadas:** `POST /admin/orders/:id/simulate` e
   `POST /admin/webhook-events/:id/replay`.
-- **Demo-token NÃO-secreto** (`DEMO_ADMIN_TOKEN`, ex.: `demo-nao-secreto`), pré-anexado pelo front e
-  **rotulado na UI** como "token de demonstração pública, não é credencial real". Ele existe para
-  dar fricção zero ao avaliador **e** para manter uma separação de rota limpa — não para fingir
-  segredo. **Isso é intencional e documentado**, não um segredo vazado.
+- **Demo-token NÃO-secreto** (`DEMO_TOKEN`, ex.: `demo-nao-secreto`). Quando o front existir
+  (_planejado_), será pré-anexado por ele e **rotulado na UI** como "token de demonstração pública,
+  não é credencial real". Ele existe para dar fricção zero ao avaliador **e** para manter uma
+  separação de rota limpa — não para fingir segredo. **Isso é intencional e documentado**, não um
+  segredo vazado.
 - **Rate limit próprio, mais agressivo** que o webhook público — endpoint de escrita sem login é
   alvo óbvio de bot/scraper (Risco 13 do SPEC).
 - **`simular confirmação`** monta e assina o payload **server-side** (o `MP_WEBHOOK_SECRET` **nunca**
-  toca o browser) e o posta contra o endpoint público real — exercitando a verificação de verdade.
+  toca o browser) e invoca o **mesmo pipeline de verificação em processo** — a Camada 1 valida a
+  assinatura de verdade; a chamada não passa pelo transporte HTTP da rota pública.
 - **`reenviar webhook`** invoca o pipeline do `packages/core` **diretamente em processo**, passando
-  `origin='admin-replay'` como parâmetro interno confiável. **Não** faz um novo POST à rota pública,
+  `source='admin_replay'` como parâmetro interno confiável. **Não** faz um novo POST à rota pública,
   logo **não** reabre a Camada 2 a um vetor de forjamento.
 
-> **Vetor fechado (o "backdoor" ambíguo):** a rota pública `/webhooks/mercadopago` **nunca** aceita
-> parâmetro ou cabeçalho do cliente que desligue a verificação. O `source='admin-replay'` só é
-> gravado por chamada em processo vinda de uma rota admin autenticada — jamais por um valor aceito
-> da rota pública. Um teste automatizado (`test-integration-admin`) garante que a Camada 2 não é
-> relaxável por input HTTP.
+> **Vetor fechado (o "backdoor" ambíguo):** a rota pública `/api/v1/webhooks/mercadopago` **nunca**
+> aceita parâmetro ou cabeçalho do cliente que desligue a verificação — **estruturalmente**: o
+> controller monta o input só com `rawBody`/`data.id`/`x-signature`/`x-request-id`
+> (`webhook.controller.ts`) e `source` tem default `mercadopago` no service. O `source='admin_replay'`
+> só é gravado por chamada em processo vinda de uma rota admin autenticada. Um teste de integração
+> dedicado a provar que a Camada 2 não é relaxável por input HTTP é _planejado_.
 
 ---
 
@@ -204,8 +223,9 @@ na rota pública de webhook.
   **backend, nunca só do CSS/front** (esconder via CSS deixa o dado cru trafegando no JSON — não é
   mascaramento, é maquiagem).
 - **Logs estruturados JSON** (pino) com **redaction** de e-mail, token e segredo. Regra de higiene:
-  nunca logar PII, segredo ou identificador puro; o campo `error` da trilha de auditoria é sanitizado
-  (sem PII/segredo).
+  nunca logar PII, segredo ou identificador puro. O campo `error` da trilha de auditoria existe no
+  schema para uso futuro; hoje falhas internas **não persistem evento** (para não envenenar o dedupe
+  — ver §3) e o detalhe vai apenas ao log estruturado.
 - **Contrato de erro problem+json (RFC 9457)** via filtro de exceção centralizado — devolve erro
   estruturado **sem vazar stack trace nem detalhe interno** ao cliente.
 
@@ -216,15 +236,18 @@ na rota pública de webhook.
 
 ## 7. Segredos e configuração
 
-- **Segredos reais** (`MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`) vivem **apenas** em env vars / secret
-  group do host (Render), **nunca** no repositório. `.env.example` documenta as chaves com valores
-  vazios/placeholder.
-- **`DEMO_ADMIN_TOKEN` não é segredo** (ver §5) — é o único "token" com valor default no
-  `.env.example`, exatamente porque é público por design.
-- **Fail-fast no boot:** validação Zod (nestjs-zod) do env — a aplicação **não sobe** com
-  configuração inválida ou segredo ausente quando `PAYMENT_PROVIDER=mercadopago`.
-- **Sem SSRF:** o host do MP é **fixo** — a API não faz requisição a URL derivada de input do
-  cliente.
+- **Segredos reais** (`MP_WEBHOOK_SECRET` hoje; `MP_ACCESS_TOKEN` na fase 4) vivem **apenas** em
+  env vars / secret group do host (Render), **nunca** no repositório. O `.env.example` traz defaults
+  de desenvolvimento obviamente não-reais (`MP_WEBHOOK_SECRET=troque-este-segredo-de-dev-1234`,
+  `DEMO_TOKEN=demo-nao-secreto`); os valores reais só existem no host.
+- **`DEMO_TOKEN` não é segredo** (ver §5) — tem valor default no `.env.example` exatamente porque é
+  público por design.
+- **Fail-fast no boot:** validação com **Zod puro plugada no `ConfigModule`** do Nest
+  (`env.config.ts`) — a aplicação **não sobe** com configuração inválida. `MP_WEBHOOK_SECRET`
+  (≥16 chars) é obrigatório em **todos** os modos; `MP_ACCESS_TOKEN` entra no schema junto com o
+  adapter MP (fase 4 — hoje `mercadopago` é bloqueado por `throw` no `PaymentModule`).
+- **Sem SSRF:** a API **não faz nenhuma chamada HTTP de saída no modo mock**; quando o adapter MP
+  entrar (fase 4), o host do provedor será **fixo** — nunca uma URL derivada de input do cliente.
 - **Pix-only:** nenhum dado de cartão trafega ou é armazenado — a superfície de PCI simplesmente não
   existe.
 
@@ -232,29 +255,41 @@ na rota pública de webhook.
 
 ## 8. Cadeia de suprimentos (supply chain)
 
-Postura de nível big-tech, verificável na aba **Actions** e no **badge do OpenSSF Scorecard** no
-README:
+Postura de nível big-tech, construída em fases — a tabela distingue o que está **ativo hoje**
+(verificável nos workflows do repositório) do que é **_planejado_** (entra com Docker, deploy e
+publicação):
 
-| Controle                                                    | O que faz                                                                                                                                                                         | Vetor que fecha                                       |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Actions SHA-pinned**                                      | Toda GitHub Action de terceiro pinada por **SHA de commit**, não por tag mutável (Renovate mantém os digests)                                                                     | Tag `@v4` sequestrada apontando para código malicioso |
-| **GITHUB_TOKEN least-privilege**                            | `permissions` default `contents: read`, elevado por job só onde necessário (`security-events: write` no CodeQL/Scorecard; `contents`/`pull-requests: write` só no release-please) | Token de CI comprometido escrevendo no repo           |
-| **gitleaks** + **GitHub secret scanning (push protection)** | Varre diff **e** history por segredos vazados; push protection barra antes do commit chegar                                                                                       | Segredo commitado por acidente                        |
-| **CodeQL**                                                  | SAST JS/TS (injection, path traversal, etc.), SARIF no Security tab                                                                                                               | Bug de segurança introduzido no código próprio        |
-| **Trivy**                                                   | Scan da imagem Docker; vuln **HIGH/CRITICAL reprova**                                                                                                                             | CVE em pacote de sistema da imagem base               |
-| **OSV-Scanner**                                             | Vulnerabilidades na árvore de dependências completa (PR + cron noturno)                                                                                                           | Dependência transitiva vulnerável                     |
-| **dependency-review**                                       | Diff de dependências no PR; bloqueia vuln e licença não-permitida introduzida                                                                                                     | Dependência ruim entrando por PR                      |
-| **OpenSSF Scorecard**                                       | Nota pública de postura de supply-chain (badge no README); checa Pinned-Dependencies, Branch-Protection, etc.                                                                     | Erosão silenciosa da postura de segurança             |
-| **SBOM (CycloneDX)**                                        | Inventário de dependências (api + web) anexado ao release                                                                                                                         | Falta de rastreabilidade quando um CVE novo aparece   |
-| **hadolint**                                                | Lint de boas práticas do Dockerfile                                                                                                                                               | Anti-padrões de imagem (root, cache, etc.)            |
-| **Renovate + Dependabot alerts**                            | Mantém versões/digests atualizados e alerta CVEs                                                                                                                                  | Rot de dependência                                    |
+**Ativo hoje:**
 
-**Endurecimento de borda/runtime complementar:** Dockerfile multi-stage, usuário **non-root**, base
-pinada por **digest**, HEALTHCHECK e signal handling PID1 corretos; **helmet + CORS restrito** na
-API; **CSP restrita + security headers** (HSTS, `X-Content-Type-Options: nosniff`, Referrer-Policy,
-Permissions-Policy, `frame-ancestors`) no **host estático** (não herda o helmet da API — o QR em
-base64 permite CSP sem `img-src` externo); **body-size cap** e **request timeout** no webhook;
-**graceful shutdown** (SIGTERM drena requests em voo e fecha o Prisma).
+| Controle                         | O que faz                                                                                                        | Vetor que fecha                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **gitleaks**                     | Varre diff **e** history completo por segredos vazados (`fetch-depth: 0`)                                        | Segredo commitado por acidente                 |
+| **CodeQL**                       | SAST JS/TS (injection, path traversal, etc.), SARIF no Security tab, em PR + cron                                | Bug de segurança introduzido no código próprio |
+| **dependency-review**            | Diff de dependências no PR; bloqueia vuln HIGH+ introduzida                                                      | Dependência ruim entrando por PR               |
+| **GITHUB_TOKEN least-privilege** | `permissions` default `contents: read`, elevado por job só onde necessário (`security-events: write` no CodeQL)  | Token de CI comprometido escrevendo no repo    |
+| **Renovate**                     | Mantém versões/digests atualizados (`.github/renovate.json`) e converte as actions para **pin por SHA** na 1ª PR | Rot de dependência; tag mutável sequestrada    |
+
+**_Planejado_ (fase Docker/deploy/publicação):**
+
+| Controle                                     | O que fará                                                                                                   | Vetor que fecha                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| **Actions SHA-pinned**                       | Toda action de terceiro pinada por **SHA de commit** (hoje: tag, com pin automatizado via Renovate na 1ª PR) | Tag `@v4` sequestrada apontando para código malicioso |
+| **GitHub secret scanning (push protection)** | Barra o segredo antes de o push chegar (setting de repo — depende da publicação)                             | Segredo commitado por acidente                        |
+| **Trivy**                                    | Scan da imagem Docker; vuln **HIGH/CRITICAL reprova**                                                        | CVE em pacote de sistema da imagem base               |
+| **hadolint**                                 | Lint de boas práticas do Dockerfile                                                                          | Anti-padrões de imagem (root, cache, etc.)            |
+| **OSV-Scanner**                              | Vulnerabilidades na árvore de dependências completa (PR + cron noturno)                                      | Dependência transitiva vulnerável                     |
+| **OpenSSF Scorecard**                        | Nota pública de postura de supply-chain (badge no README)                                                    | Erosão silenciosa da postura de segurança             |
+| **SBOM (CycloneDX)**                         | Inventário de dependências anexado ao release                                                                | Falta de rastreabilidade quando um CVE novo aparece   |
+| **Dependabot alerts**                        | Alerta de CVE em dependência (setting de repo — depende da publicação)                                       | CVE novo em dependência já usada                      |
+
+**Endurecimento de borda/runtime — ativo hoje:** **helmet** na API; **body-size cap de 32kb** no
+parser do webhook; **graceful shutdown** (SIGTERM drena requests em voo e fecha o Prisma).
+**_Planejado_:** Dockerfile multi-stage, usuário **non-root**, base pinada por **digest**,
+HEALTHCHECK e signal handling PID1 corretos (entram com o Docker); **CORS restrito** e **request
+timeout** na API (entram com o `apps/web`, quando existir origem real — o timeout exige teste de
+latência contra o pior caso do provedor); **CSP restrita + security headers** (HSTS,
+`X-Content-Type-Options: nosniff`, Referrer-Policy, Permissions-Policy, `frame-ancestors`) no
+**host estático** (não herda o helmet da API — o QR em base64 permite CSP sem `img-src` externo).
 
 ---
 
@@ -321,4 +356,5 @@ será tratada como uso indevido. Este projeto **não** oferece recompensa financ
 - `adr/0002` — verificação de assinatura + política de anti-replay (**inclui a ressalva do campo
   `ts` a confirmar** — §4).
 - `adr/0003` — a affordance de replay como ferramenta de demo (honestidade explícita).
+- `adr/0004` — Nest 10 + ESM puro e o provider atrás de porta (mock proibido em produção).
 - `ARCHITECTURE.md` — diagrama das três camadas e a separação rota-pública vs. admin.
