@@ -21,6 +21,9 @@ const EnvSchema = z
     PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
     // Segredo do webhook (verificação HMAC). Mínimo defensivo de comprimento.
     MP_WEBHOOK_SECRET: z.string().min(16, 'MP_WEBHOOK_SECRET deve ter ao menos 16 caracteres'),
+    // Token de demonstração das rotas /admin — NÃO é segredo (o front pré-anexa e
+    // a UI rotula como público). Só evita cliques acidentais de bot; rate-limit à parte.
+    DEMO_TOKEN: z.string().min(8, 'DEMO_TOKEN deve ter ao menos 8 caracteres'),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.PAYMENT_PROVIDER === 'mock'), {
     message: 'PAYMENT_PROVIDER=mock é proibido em produção (trava de segurança)',

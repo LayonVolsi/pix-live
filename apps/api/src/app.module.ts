@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import { AdminModule } from './admin/admin.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PaymentModule } from './payment/payment.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -50,6 +51,7 @@ const isDevelopment = process.env['NODE_ENV'] === 'development';
     PaymentModule,
     HealthModule,
     WebhookModule,
+    AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -110,7 +110,7 @@ export class WebhookService {
     const requestIdAlreadyProcessed =
       input.requestId !== null &&
       (await this.prisma.webhookEvent.findFirst({
-        where: { source: WebhookSource.mercadopago, requestIdHeader: input.requestId },
+        where: { source, requestIdHeader: input.requestId },
       })) !== null;
     const creditAlreadyExists =
       (await this.prisma.orderCredit.findUnique({ where: { mpPaymentId: dataId } })) !== null;

@@ -11,5 +11,6 @@ import { WebhookService } from './webhook.service.js';
   imports: [PaymentModule],
   controllers: [WebhookController],
   providers: [WebhookService],
+  exports: [WebhookService], // AdminModule injeta o pipeline para simular/replay
 })
 export class WebhookModule {}
