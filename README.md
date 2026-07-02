@@ -4,7 +4,7 @@
 
 **Checkout Pix que não duplica dinheiro.** Reenvie o mesmo webhook e veja, ao vivo, a idempotência bloquear a segunda entrega — a prova de que "dinheiro não some", no idioma do cliente.
 
-<!-- Badges: alguns só acendem após o primeiro run de CI / deploy / Scorecard. Ver "Estado atual do build". -->
+<!-- Badges: os de license/último-commit só renderizam após a publicação do repo, e os de CI/deploy/Scorecard só acendem após o primeiro run/deploy. Ver "Estado atual do build". -->
 
 [![CI](https://github.com/racionalmengo/pix-live/actions/workflows/ci.yml/badge.svg)](https://github.com/racionalmengo/pix-live/actions/workflows/ci.yml)
 [![Cobertura](https://img.shields.io/badge/cobertura-core%20%E2%89%A590%25%20imposto%20no%20CI-brightgreen)](https://github.com/racionalmengo/pix-live/actions/workflows/ci.yml)
@@ -76,7 +76,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 
 ### Três camadas independentes na rota pública de webhook
 
-A rota pública `POST /webhooks/mercadopago` **nunca** aceita nenhuma flag do cliente que relaxe a segurança:
+A rota pública `POST /api/v1/webhooks/mercadopago` **nunca** aceita nenhuma flag do cliente que relaxe a segurança (todas as rotas, exceto `/health/*`, vivem sob o prefixo global `/api/v1`):
 
 1. **Autenticidade (HMAC).** Lê o raw body (com cap de tamanho; corpo não-JSON não é parseado e falha fechado), remonta o manifesto exato do MP e compara HMAC-SHA256 **em tempo constante**. Inválida/ausente → **401**, veredito `assinatura_invalida`, sem tocar no pedido. _(Implementação em [`packages/core/src/signature.ts`](./packages/core/src/signature.ts).)_
 2. **Anti-replay.** Dedupe real por `x-request-id` (índice único) + janela de timestamp **generosa (24h)**. Trade-off consciente: quando o HMAC é válido mas o `ts` foge da janela, registra o veredito **`ts_suspeito`** em vez de dar 401 — para não descartar permanentemente uma reentrega legítima tardia. _(Ver [`packages/core/src/idempotency.ts`](./packages/core/src/idempotency.ts).)_
@@ -84,9 +84,9 @@ A rota pública `POST /webhooks/mercadopago` **nunca** aceita nenhuma flag do cl
 
 ### Rotas admin separadas — não é contradição com "zero login"
 
-O painel de conciliação é **público por design** (só leitura). As ações de **escrita** ("simular confirmação", "reenviar webhook") vivem em **rotas `/admin/*` separadas**, protegidas por um **demo-token NÃO-secreto** — pré-anexado pelo front (zero fricção pro avaliador) e rotulado na UI como _"token de demonstração pública, não é credencial real"_, com rate limit próprio bem mais agressivo (alvo óbvio de bot/scraper).
+O painel de conciliação é **público por design** (só leitura). As ações de **escrita** ("simular confirmação", "reenviar webhook") vivem em **rotas `/api/v1/admin/*` separadas**, protegidas por um **demo-token NÃO-secreto** — pré-anexado pelo front (zero fricção pro avaliador) e rotulado na UI como _"token de demonstração pública, não é credencial real"_, com rate limit próprio bem mais agressivo (alvo óbvio de bot/scraper).
 
-O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em processo** (`origin='admin-replay'`, parâmetro interno confiável) — **nunca** faz um novo POST à rota pública. Assim a Camada 2 nunca é reaberta a um vetor de forjamento.
+O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em processo** (`source='admin_replay'`, parâmetro interno confiável) — **nunca** faz um novo POST à rota pública. Assim a Camada 2 nunca é reaberta a um vetor de forjamento.
 
 ### Hardening de borda
 
@@ -105,7 +105,7 @@ Monorepo pnpm com o **domínio puro isolado do framework**:
 
 ```mermaid
 flowchart TD
-    MP[Mercado Pago sandbox] -->|POST webhook| WH["/webhooks/mercadopago (público)"]
+    MP[Mercado Pago sandbox] -->|POST webhook| WH["/api/v1/webhooks/mercadopago (público)"]
     WH -->|raw body| L1{"Camada 1<br/>HMAC tempo constante"}
     L1 -->|inválida| R401[401 · assinatura_invalida]
     L1 -->|válida| L2{"Camada 2<br/>dedupe x-request-id + janela ts"}
@@ -114,7 +114,7 @@ flowchart TD
     L3 -->|crédito já existe| DUP
     L3 -->|crédito novo| OK[200 · processado · pedido = paid]
 
-    ADMIN["/admin/* (demo-token não-secreto)"] -.->|replay em processo| CORE[["packages/core<br/>domínio puro"]]
+    ADMIN["/api/v1/admin/* (demo-token não-secreto)"] -.->|replay em processo| CORE[["packages/core<br/>domínio puro"]]
     CORE --- L1 & L2 & L3
     PANEL["Painel de conciliação (público, leitura)<br/>e-mail mascarado no backend"] --> DB[(PostgreSQL)]
     L3 --> DB
@@ -171,7 +171,7 @@ Só o **domínio puro** (`packages/core`)? `pnpm install && pnpm test`.
 | -------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Frontend | React + Vite + TypeScript strict, Tailwind, TanStack Query               | Cache e **polling curto** (2–3s, pausado via Page Visibility API) — **SSE foi avaliado e descartado**: mesma percepção de "ao vivo" com muito menos superfície de falha no free tier. |
 | Backend  | Node.js + NestJS + TS strict, provider Pix atrás de um adapter plugável  | Adapter mock offline hoje; SDK `mercadopago` (sandbox) entra na fase 4. `zod` (env fail-fast), `pino`, `helmet`, `@nestjs/throttler`, `@nestjs/terminus`, `@nestjs/swagger`.          |
-| Dados    | PostgreSQL 16 + Prisma                                                   | Idempotência é do banco: constraint de unicidade + transação. Seed determinístico com o pedido pré-semeado (a fixture real do MP entra na fase 4).                                    |
+| Dados    | PostgreSQL (alvo: 16) + Prisma                                           | Idempotência é do banco: constraint de unicidade + transação. Seed determinístico com o pedido pré-semeado (a fixture real do MP entra na fase 4).                                    |
 | Deploy   | Render (Blueprint) — API em Docker + site estático + Postgres gerenciado | Persistência resolvida explicitamente (ver abaixo). Keep-warm por cron contra `/health/ready`.                                                                                        |
 
 Toolchain: pnpm workspaces, Node LTS (20+), TypeScript strict total, ESLint 9 flat config, Prettier, Husky + commitlint (Conventional Commits), release-please (SemVer/CHANGELOG, _a partir da v1.0.0_).
@@ -184,11 +184,11 @@ Pirâmide real, específica deste domínio:
 
 - **Unit (Vitest)** no domínio puro: manifesto HMAC, assinatura (válida/adulterada/ausente/tempo constante), decisor de idempotência, máquina de estados cobrindo **todos** os status do MP, formatação de dinheiro. _(Testes em [`packages/core/test/`](./packages/core/test).)_
 - **Mutation testing (Stryker)** sobre `packages/core` (_planejado_ — entra no endurecimento do CI) — score-alvo **≥85%**: prova que os testes **matam mutantes**, não só cobrem linhas.
-- **Integração (Supertest + Postgres real):** crédito exatamente-uma-vez sob re-entrega, 401 em assinatura inválida, `ts` fora da janela como sinal (não hard-reject), **corrida de entregas concorrentes**, e um caso contra a **fixture REAL do MP sandbox**.
-- **Admin isolado:** `/admin/*` exige demo-token, respeita rate limit próprio, e o replay nunca passa pela rota pública.
+- **Integração (Supertest + Postgres real):** crédito exatamente-uma-vez sob re-entrega, 401 em assinatura inválida, `ts` fora da janela como sinal (não hard-reject), **corrida de entregas concorrentes**. Roda local contra Postgres real (a suíte pula sem `DATABASE_URL`); job de CI com Postgres service é _planejado_. O caso contra a **fixture REAL do MP sandbox** entra na fase 4 (_planejado_).
+- **Admin isolado:** `/api/v1/admin/*` exige demo-token, respeita rate limit próprio, e o replay nunca passa pela rota pública.
 - **E2E (Playwright + axe-core)** (_planejado_ — entra com o `apps/web`): caminho rápido (pedido pré-semeado) e completo, com checagem de acessibilidade.
 
-**Cobertura imposta no CI:** core ≥90% em linhas/branches/funções/statements (thresholds do vitest reprovam o run). Gate global ≥80% incluindo `apps/` é _planejado_ — entra com o `apps/web`. CI em Node LTS.
+**Cobertura imposta no CI:** core ≥90% em linhas/branches/funções/statements (thresholds do vitest reprovam o run). Gate global ≥80% incluindo `apps/` é _planejado_ — entra com o `apps/web`. CI em Node LTS. Branch protection com checks required em `main` é _planejada_ (configuração do GitHub — entra na publicação).
 
 <!-- Print da aba Actions com todos os checks required verdes. -->
 
