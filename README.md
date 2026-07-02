@@ -53,7 +53,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 - Um produto fixo, preço fixo (Kit Caderno Artesanal, **R$ 47,00**), com seed realista.
 - Cobrança Pix via SDK oficial do Mercado Pago em **sandbox**: QR Code (PNG), copia-e-cola (EMV) e expiração.
 - Página de pagamento com QR, copiar copia-e-cola, contador de expiração e status que vira **"Pago"** via polling curto (pausado quando a aba perde foco).
-- Endpoint público de webhook: raw body, HMAC em tempo constante, processamento idempotente, cap de tamanho de corpo e `Content-Type` validado.
+- Endpoint público de webhook: raw body, HMAC em tempo constante, processamento idempotente e cap de tamanho de corpo; só `application/json` é parseado — corpo em outro formato falha fechado em 401.
 - **Painel de conciliação público** (leitura): pedidos e log de webhooks com veredito, validade de assinatura e latência — **e-mail do pagador mascarado no backend** (nunca só CSS).
 - Um pedido **já pago pré-semeado** para alcançar o wow em <10s direto pelo link.
 - **Modo mock MP** para rodar 100% offline no dev local e no CI, sem conta no Mercado Pago (`docker compose up` de um comando é _planejado_ — entra com o Dockerfile).
@@ -78,7 +78,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 
 A rota pública `POST /webhooks/mercadopago` **nunca** aceita nenhuma flag do cliente que relaxe a segurança:
 
-1. **Autenticidade (HMAC).** Lê o raw body (com cap de tamanho e `Content-Type` validado), remonta o manifesto exato do MP e compara HMAC-SHA256 **em tempo constante**. Inválida/ausente → **401**, veredito `assinatura_invalida`, sem tocar no pedido. _(Implementação em [`packages/core/src/signature.ts`](./packages/core/src/signature.ts).)_
+1. **Autenticidade (HMAC).** Lê o raw body (com cap de tamanho; corpo não-JSON não é parseado e falha fechado), remonta o manifesto exato do MP e compara HMAC-SHA256 **em tempo constante**. Inválida/ausente → **401**, veredito `assinatura_invalida`, sem tocar no pedido. _(Implementação em [`packages/core/src/signature.ts`](./packages/core/src/signature.ts).)_
 2. **Anti-replay.** Dedupe real por `x-request-id` (índice único) + janela de timestamp **generosa (24h)**. Trade-off consciente: quando o HMAC é válido mas o `ts` foge da janela, registra o veredito **`ts_suspeito`** em vez de dar 401 — para não descartar permanentemente uma reentrega legítima tardia. _(Ver [`packages/core/src/idempotency.ts`](./packages/core/src/idempotency.ts).)_
 3. **Idempotência de negócio.** Credita exatamente uma vez via **constraint de unicidade em `mp_payment_id`**, dentro de transação. A corrida entre entregas simultâneas é resolvida pelo banco, não por checagem em memória.
 
@@ -90,9 +90,9 @@ O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em proce
 
 ### Hardening de borda
 
-- **API:** helmet + CORS restrito + rate limit (webhook, criação de pedido e admin) + validação Zod de todo input e do env (fail-fast no boot) + request timeout. Sem SSRF (host MP fixo), sem card data (Pix-only).
+- **API:** helmet + rate limit estratificado por rota (global, webhook, criação de pedido e admin) + validação Zod do **env** (fail-fast no boot); o corpo do webhook é tratado como input hostil, com parsing defensivo e cap de 32kb no parser. CORS restrito e request timeout são _planejados_ — entram com o `apps/web` (origem real conhecida) e com teste de latência contra o pior caso do provedor. Sem chamada HTTP de saída no modo mock (quando o adapter MP entrar, o host é fixo — sem SSRF), sem card data (Pix-only).
 - **Site estático:** NÃO herda o helmet da API — CSP restrita e security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors`) definidos no próprio host. O QR embutido como base64 permite CSP sem `img-src` externo.
-- **Container:** Dockerfile multi-stage, usuário **non-root**, base pinada por digest, `HEALTHCHECK`, signal handling PID1 correto, `.dockerignore`, deps de produção apenas.
+- **Container** (_planejado_ — entra com o Dockerfile): multi-stage, usuário **non-root**, base pinada por digest, `HEALTHCHECK`, signal handling PID1 correto, `.dockerignore`, deps de produção apenas — verificado com Trivy/hadolint antes do deploy.
 - **Supply chain:** actions do CI **pinadas por SHA**, `GITHUB_TOKEN` com permissões mínimas por job.
 
 Threat model completo e política de disclosure em **[`SECURITY.md`](./SECURITY.md)**.
@@ -120,7 +120,7 @@ flowchart TD
     L3 --> DB
 ```
 
-- **`packages/core`** — domínio **puro** (sem NestJS/Prisma/HTTP): builder do manifesto de assinatura, verificador HMAC em tempo constante, decisor de idempotência, máquina de estados do pedido cobrindo **todas** as transições do MP (`approved`/`rejected`/`cancelled`/`in_process`/`expirado`), formatação de dinheiro em centavos. Fronteira imposta por lint (core não importa framework).
+- **`packages/core`** — domínio **puro** (sem NestJS/Prisma/HTTP): builder do manifesto de assinatura, verificador HMAC em tempo constante, decisor de idempotência, máquina de estados do pedido cobrindo **todas** as transições do MP (`approved`/`rejected`/`cancelled`/`in_process`/`expirado`), formatação de dinheiro em centavos. Fronteira garantida por construção — `packages/core` não tem nenhuma dependência de runtime no `package.json`; a regra de lint que a impõe formalmente é _planejada_.
 - **`apps/api`** — NestJS + Prisma + Postgres, adapter de provedor plugável (MP real vs. mock).
 - **`apps/web`** — React + Vite + TanStack Query (polling curto).
 
@@ -170,7 +170,7 @@ Só o **domínio puro** (`packages/core`)? `pnpm install && pnpm test`.
 | Camada   | Escolha                                                                  | Por quê                                                                                                                                                                               |
 | -------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Frontend | React + Vite + TypeScript strict, Tailwind, TanStack Query               | Cache e **polling curto** (2–3s, pausado via Page Visibility API) — **SSE foi avaliado e descartado**: mesma percepção de "ao vivo" com muito menos superfície de falha no free tier. |
-| Backend  | Node.js + NestJS + TS strict, SDK `mercadopago` atrás de um adapter      | Adapter real vs. mock para rodar offline/CI; `nestjs-zod`, `pino`, `helmet`, `@nestjs/throttler`, `@nestjs/terminus`, `@nestjs/swagger`.                                              |
+| Backend  | Node.js + NestJS + TS strict, provider Pix atrás de um adapter plugável  | Adapter mock offline hoje; SDK `mercadopago` (sandbox) entra na fase 4. `zod` (env fail-fast), `pino`, `helmet`, `@nestjs/throttler`, `@nestjs/terminus`, `@nestjs/swagger`.          |
 | Dados    | PostgreSQL 16 + Prisma                                                   | Idempotência é do banco: constraint de unicidade + transação. Seed determinístico com o pedido pré-semeado e a fixture real do MP.                                                    |
 | Deploy   | Render (Blueprint) — API em Docker + site estático + Postgres gerenciado | Persistência resolvida explicitamente (ver abaixo). Keep-warm por cron contra `/health/ready`.                                                                                        |
 
@@ -183,10 +183,10 @@ Toolchain: pnpm workspaces, Node LTS (20+), TypeScript strict total, ESLint 9 fl
 Pirâmide real, específica deste domínio:
 
 - **Unit (Vitest)** no domínio puro: manifesto HMAC, assinatura (válida/adulterada/ausente/tempo constante), decisor de idempotência, máquina de estados cobrindo **todos** os status do MP, formatação de dinheiro. _(Testes em [`packages/core/test/`](./packages/core/test).)_
-- **Mutation testing (Stryker)** sobre `packages/core` — score-alvo **≥85%**: prova que os testes **matam mutantes**, não só cobrem linhas.
+- **Mutation testing (Stryker)** sobre `packages/core` (_planejado_ — entra no endurecimento do CI) — score-alvo **≥85%**: prova que os testes **matam mutantes**, não só cobrem linhas.
 - **Integração (Supertest + Postgres real):** crédito exatamente-uma-vez sob re-entrega, 401 em assinatura inválida, `ts` fora da janela como sinal (não hard-reject), **corrida de entregas concorrentes**, e um caso contra a **fixture REAL do MP sandbox**.
 - **Admin isolado:** `/admin/*` exige demo-token, respeita rate limit próprio, e o replay nunca passa pela rota pública.
-- **E2E (Playwright + axe-core):** caminho rápido (pedido pré-semeado) e completo, com checagem de acessibilidade.
+- **E2E (Playwright + axe-core)** (_planejado_ — entra com o `apps/web`): caminho rápido (pedido pré-semeado) e completo, com checagem de acessibilidade.
 
 **Cobertura-alvo imposta no CI:** core ≥90% linhas/branches, global ≥80%. CI em Node LTS, gates required em `main` (nenhum merge com check vermelho).
 
