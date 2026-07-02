@@ -115,6 +115,9 @@ aceita flag/cabeçalho do cliente que relaxe a camada seguinte.
   e evita 500 informativo).
 - **Assinatura inválida ou ausente → HTTP 401**, verdict `assinatura_invalida`, **sem tocar no
   pedido**. É o único caminho que devolve 401.
+- **Anti-flood por construção:** o caminho da assinatura inválida custa **zero I/O de banco** — o
+  corpo não é persistido e nenhuma consulta é feita antes do veredito da Camada 1 (coberto por
+  teste de integração: "assinatura inválida → 401 e zero escrita no banco").
 
 > **Vetor fechado:** forjar um webhook "pagamento aprovado" sem o segredo. Sem o `MP_WEBHOOK_SECRET`
 > o atacante não produz um `v1` válido, e a comparação em tempo constante não vaza informação byte a
@@ -149,6 +152,20 @@ aceita flag/cabeçalho do cliente que relaxe a camada seguinte.
 **Contrato de status HTTP** (`httpStatusForVerdict`): **401** só para assinatura inválida; **500** só
 para erro interno; **todo o resto é 200 (ack)** — para o provedor parar de reentregar. A reentrega é
 inofensiva porque o processamento é idempotente.
+
+### Invariantes adicionais do pipeline (implementadas e testadas)
+
+- **Status e valor nunca vêm do corpo do webhook.** O corpo só aponta o `data.id`; o status vem de
+  **consulta autenticada ao provedor** e o valor do crédito vem do **pedido** (`order.amountCents`)
+  — um webhook forjado "aprovado" não tem como injetar estado nem valor.
+- **Falha transitória na consulta ao provedor → 500 sem persistir evento.** O delivery-id não é
+  gravado, então o dedupe da Camada 2 **não é envenenado** e a reentrega do provedor completa o
+  crédito depois. (Fecha um achado ALTO da revisão adversarial interna — perda de crédito sob falha
+  de rede — pego pelo pipeline antes de qualquer cliente.)
+- **Optimistic lock no update de status do pedido:** uma atualização concorrente não sobrescreve um
+  `paid` já gravado.
+- **Idempotência de saída** (`OutboundIdempotencyKey`): o retry da criação de cobrança não duplica
+  a chamada ao provedor — o mesmo cuidado da entrada, aplicado na direção oposta.
 
 ---
 
@@ -198,7 +215,8 @@ na rota pública de webhook.
   não é credencial real". Ele existe para dar fricção zero ao avaliador **e** para manter uma
   separação de rota limpa — não para fingir segredo. **Isso é intencional e documentado**, não um
   segredo vazado.
-- **Rate limit próprio, mais agressivo** que o webhook público — endpoint de escrita sem login é
+- **Rate limit estratificado por rota, com números:** global 120/min, webhook 30/min, criação de
+  pedido 20/min e **admin 10/min** — o mais agressivo justamente no endpoint de escrita sem login,
   alvo óbvio de bot/scraper (Risco 13 do SPEC).
 - **`simular confirmação`** monta e assina o payload **server-side** (o `MP_WEBHOOK_SECRET` **nunca**
   toca o browser) e invoca o **mesmo pipeline de verificação em processo** — a Camada 1 valida a
@@ -246,6 +264,10 @@ na rota pública de webhook.
   (`env.config.ts`) — a aplicação **não sobe** com configuração inválida. `MP_WEBHOOK_SECRET`
   (≥16 chars) é obrigatório em **todos** os modos; `MP_ACCESS_TOKEN` entra no schema junto com o
   adapter MP (fase 4 — hoje `mercadopago` é bloqueado por `throw` no `PaymentModule`).
+- **`PAYMENT_PROVIDER=mock` é proibido em produção** — trava de segurança no próprio schema de env
+  (`refine` do Zod): a aplicação não sobe em produção fingindo provedor.
+- **`trust proxy = 1` (exatamente 1 hop):** o rate limit não é enganável por `X-Forwarded-For`
+  forjado — só o proxy imediato é confiável.
 - **Sem SSRF:** a API **não faz nenhuma chamada HTTP de saída no modo mock**; quando o adapter MP
   entrar (fase 4), o host do provedor será **fixo** — nunca uma URL derivada de input do cliente.
 - **Pix-only:** nenhum dado de cartão trafega ou é armazenado — a superfície de PCI simplesmente não
