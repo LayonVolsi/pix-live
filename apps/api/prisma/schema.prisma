@@ -112,15 +112,18 @@ model WebhookEvent {
   id              String         @id @default(uuid()) @db.Uuid
   receivedAt      DateTime       @default(now()) @map("received_at")
   source          WebhookSource
-  signatureHeader String?        @map("signature_header")
-  requestIdHeader String?        @map("request_id_header")
-  tsFromSignature String?        @map("ts_from_signature")
+  signatureHeader String?        @map("signature_header") @db.VarChar(512)
+  requestIdHeader String?        @map("request_id_header") @db.VarChar(255)
+  tsFromSignature String?        @map("ts_from_signature") @db.VarChar(64)
   signatureValid  Boolean        @map("signature_valid")
   verdict         WebhookVerdict
-  mpPaymentId     String?        @map("mp_payment_id")
+  mpPaymentId     String?        @map("mp_payment_id") @db.VarChar(255)
   relatedOrderId  String?        @map("related_order_id") @db.Uuid
   processingMs    Int            @map("processing_ms")
-  rawBody         String         @map("raw_body")
+  // Nullable de propósito: só persistimos o corpo cru de eventos com assinatura
+  // VÁLIDA (bounded). Tentativa inválida não grava corpo — evita flood de escrita
+  // de anônimo. Ver laudo de segurança + SECURITY.md.
+  rawBody         String?        @map("raw_body")
   error           String?
 
   relatedOrder Order? @relation(fields: [relatedOrderId], references: [id])
