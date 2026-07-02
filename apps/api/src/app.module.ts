@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { PaymentModule } from './payment/payment.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
 import { WebhookModule } from './webhook/webhook.module.js';
 import { validateEnv } from './config/env.config.js';
 
@@ -54,6 +55,7 @@ const isDevelopment = process.env['NODE_ENV'] === 'development';
     WebhookModule,
     AdminModule,
     OrdersModule,
+    ReconciliationModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
