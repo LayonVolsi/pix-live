@@ -244,7 +244,7 @@ O painel de conciliação é observabilidade de domínio de primeira classe: cad
 
 ## 🗄️ Nota de persistência do Postgres
 
-Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mudo em 30 dias é pior que não ter link. Free tiers de Postgres gerenciado frequentemente **expiram dados** (diferente de um web service que só "dorme"). Antes do deploy, uma das opções é decidida e documentada aqui: **(a)** um Postgres gerenciado pago sem expiração de free tier; **(b)** um provedor cujo free tier comprovadamente não expira dados (confirmado antes de depender dele); ou **(c)** self-host num container Postgres atrás da infra já mantida (Caddy/Tailscale). O cold-start do web service é mitigado por cron pingando `/health/ready` — isso **não** substitui a decisão de persistência do banco.
+Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mudo em 30 dias é pior que não ter link. Free tiers de Postgres gerenciado frequentemente **expiram dados** (diferente de um web service que só "dorme"). Antes do deploy, uma das opções é decidida e documentada aqui: **(a)** um Postgres gerenciado pago sem expiração de free tier; **(b)** um provedor cujo free tier comprovadamente não expira dados (confirmado antes de depender dele); ou **(c)** self-host num container Postgres atrás de um reverse proxy e VPN mesh já mantidos. O cold-start do web service é mitigado por cron pingando `/health/ready` — isso **não** substitui a decisão de persistência do banco.
 
 ---
 
