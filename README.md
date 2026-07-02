@@ -226,6 +226,7 @@ Julgamento de engenharia documentado, com trade-offs explícitos:
 - **[ADR-0001 — Estratégia de idempotência](./adr/0001-idempotencia.md):** crédito exatamente-uma-vez por constraint de banco sob corrida (não por checagem em memória).
 - **[ADR-0002 — Verificação de assinatura + anti-replay](./adr/0002-assinatura-anti-replay.md):** HMAC sobre raw body + a ressalva honesta sobre a semântica do campo `ts` do MP (a confirmar contra a doc do provedor) e a política de janela generosa como sinal.
 - **[ADR-0003 — Replay como ferramenta de demo](./adr/0003-replay-demo.md):** honestidade explícita de que em produção o botão não existiria e a Camada 2 rejeitaria a reentrega antiga.
+- **[ADR-0004 — Nest 10 + ESM puro (NodeNext)](./adr/0004-nest10-esm-nodenext.md):** por que a stack roda em Node 18 local e 20/22 no CI, o custo aceito do ESM puro (imports com `.js`) e o provider de pagamento atrás de porta (mock proibido em produção).
 
 O design completo (spec adversarialmente revisada) está em **[`SPEC.md`](./SPEC.md)**.
 
