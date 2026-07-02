@@ -1,6 +1,5 @@
 import { performance } from 'node:perf_hooks';
 import {
-  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -10,9 +9,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Prisma, WebhookSource } from '@prisma/client';
 import type { Order, WebhookVerdict } from '@prisma/client';
-
-/** dataId/requestId são persistidos em VARCHAR(255) — teto para evitar P2000. */
-const MAX_ID_LEN = 255;
 import {
   decideVerdict,
   httpStatusForVerdict,
@@ -74,14 +70,9 @@ export class WebhookService {
       throw new UnauthorizedException('assinatura inválida');
     }
 
-    // Guarda de tamanho (pós-autenticação): dataId/requestId vão para VARCHAR(255);
-    // um valor maior (drift do provedor) quebraria o INSERT com P2000 → 500 cru.
-    // Rejeita cedo e controlado. Ver review de segurança, finding 3.
-    if (input.dataId.length > MAX_ID_LEN || (input.requestId?.length ?? 0) > MAX_ID_LEN) {
-      this.logger.warn('Webhook rejeitado: identificador acima de 255 caracteres');
-      throw new BadRequestException('identificador acima do tamanho permitido');
-    }
-
+    // Sem guard de tamanho: as colunas de auditoria são TEXT (ver schema) e a
+    // entrada é limitada pelo teto de header do Node + cap de corpo de 32KB.
+    // Rejeitar por tamanho aqui criaria fail-closed em drift legítimo do provedor.
     return this.processAuthenticated({ ...input, dataId: input.dataId }, sig.ts);
   }
 
@@ -174,8 +165,11 @@ export class WebhookService {
       }
     }
     if (transition.changed) {
-      await this.prisma.order.update({
-        where: { id: order.id },
+      // Optimistic lock: só altera se o status ainda for o que lemos. Não clobbera
+      // um 'paid' já commitado por uma entrega concorrente do mesmo pagamento
+      // (lost update / TOCTOU no campo Order.status do painel). Ver review.
+      await this.prisma.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: { status: transition.next },
       });
     }

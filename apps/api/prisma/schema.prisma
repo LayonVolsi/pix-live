@@ -112,12 +112,16 @@ model WebhookEvent {
   id              String         @id @default(uuid()) @db.Uuid
   receivedAt      DateTime       @default(now()) @map("received_at")
   source          WebhookSource
-  signatureHeader String?        @map("signature_header") @db.VarChar(512)
-  requestIdHeader String?        @map("request_id_header") @db.VarChar(255)
-  tsFromSignature String?        @map("ts_from_signature") @db.VarChar(64)
+  // TEXT (não VarChar): estes campos vêm de headers/corpo já autenticados (só
+  // eventos com assinatura válida persistem) e são limitados pelo teto de header
+  // do Node (~16KB) e pelo cap de corpo (32KB). VarChar geraria P2000 num valor
+  // maior (drift do provedor) → 500 recorrente + fail-closed. Ver review, finding 3.
+  signatureHeader String?        @map("signature_header")
+  requestIdHeader String?        @map("request_id_header")
+  tsFromSignature String?        @map("ts_from_signature")
   signatureValid  Boolean        @map("signature_valid")
   verdict         WebhookVerdict
-  mpPaymentId     String?        @map("mp_payment_id") @db.VarChar(255)
+  mpPaymentId     String?        @map("mp_payment_id")
   relatedOrderId  String?        @map("related_order_id") @db.Uuid
   processingMs    Int            @map("processing_ms")
   // Nullable de propósito: só persistimos o corpo cru de eventos com assinatura

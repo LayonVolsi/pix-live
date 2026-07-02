@@ -65,6 +65,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   private describe(exception: unknown): { status: number; detail: string } {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
+      // 5xx nunca ecoa mensagem (mesmo de HttpException): detalhe genérico, o
+      // detalhe real vai só para o log. Defesa em profundidade (review, finding 4).
+      if (status >= 500) return { status, detail: 'Erro interno.' };
       const res = exception.getResponse();
       const detail = typeof res === 'string' ? res : (this.messageOf(res) ?? exception.message);
       return { status, detail };
