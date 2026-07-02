@@ -38,7 +38,7 @@ Integração **Pix real** de ponta a ponta com a barra de segurança e engenhari
 - **Webhook assinado de verdade.** Verificação HMAC-SHA256 sobre o **corpo cru** (raw body), em **tempo constante**, remontando o manifesto exato do provedor.
 - **Integração real, não auto-simulação.** Pelo menos **1 webhook REAL capturado do sandbox do Mercado Pago** (headers e payload genuínos, PII redigida) vive como **fixture de teste em CI** — fecha a dúvida óbvia do avaliador técnico: "isso valida contra o formato real do provedor ou só contra si mesmo?".
 - **Dinheiro não duplica — garantido pelo banco.** O crédito é exatamente-uma-vez via **constraint de unicidade** em transação, sob corrida entre entregas simultâneas (`at-least-once` do provedor resolvido pelo banco, não por `if` em memória).
-- **Processo de engenharia visível.** Badge do **OpenSSF Scorecard**, **SBOM**, **scan de imagem** e a aba Actions com checks required — não só código, mas a cadeia de entrega levada a sério.
+- **Processo de engenharia visível.** CI com **CodeQL**, **gitleaks** e **dependency-review** desde o primeiro commit; **OpenSSF Scorecard**, **SBOM** e **scan de imagem** entram no endurecimento (roadmap declarado abaixo) — não só código, mas a cadeia de entrega levada a sério.
 
 **Contraste que vende:** escopo de brinquedo, barra de produção. Um produto fixo, um preço — a loja fictícia **Papelaria Nó de Fita** vendendo o **Kit Caderno Artesanal** por **R$ 47,00**.
 
@@ -93,7 +93,7 @@ O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em proce
 - **API:** helmet + rate limit estratificado por rota (global, webhook, criação de pedido e admin) + validação Zod do **env** (fail-fast no boot); o corpo do webhook é tratado como input hostil, com parsing defensivo e cap de 32kb no parser. CORS restrito e request timeout são _planejados_ — entram com o `apps/web` (origem real conhecida) e com teste de latência contra o pior caso do provedor. Sem chamada HTTP de saída no modo mock (quando o adapter MP entrar, o host é fixo — sem SSRF), sem card data (Pix-only).
 - **Site estático:** NÃO herda o helmet da API — CSP restrita e security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors`) definidos no próprio host. O QR embutido como base64 permite CSP sem `img-src` externo.
 - **Container** (_planejado_ — entra com o Dockerfile): multi-stage, usuário **non-root**, base pinada por digest, `HEALTHCHECK`, signal handling PID1 correto, `.dockerignore`, deps de produção apenas — verificado com Trivy/hadolint antes do deploy.
-- **Supply chain:** actions do CI **pinadas por SHA**, `GITHUB_TOKEN` com permissões mínimas por job.
+- **Supply chain:** `GITHUB_TOKEN` com permissões mínimas por job; actions referenciadas por tag hoje, com **pin por SHA automatizado via Renovate** na primeira PR (`helpers:pinGitHubActionDigests`).
 
 Threat model completo e política de disclosure em **[`SECURITY.md`](./SECURITY.md)**.
 
@@ -198,13 +198,22 @@ Pirâmide real, específica deste domínio:
 
 ## 🛡️ Supply chain & segurança
 
-Diferencial que quase nenhum repo de portfólio tem — cadeia de entrega auditável:
+Diferencial que quase nenhum repo de portfólio tem — cadeia de entrega auditável.
 
-- **[![OpenSSF Scorecard](https://img.shields.io/badge/OpenSSF-Scorecard-blue)](https://securityscorecards.dev/viewer/?uri=github.com/racionalmengo/pix-live)** rodando com badge público (no topo).
-- **SBOM CycloneDX** (api + web) anexado a cada release.
+**Ativo hoje (verificável nos workflows do repo):**
+
+- **CodeQL** (SAST) em PR + cron semanal.
+- **gitleaks** varrendo o history completo por segredo vazado.
+- **dependency-review** bloqueando dependência com vuln HIGH+ introduzida por PR.
+- **Renovate** mantendo versões e digests (`.github/renovate.json`).
+- `GITHUB_TOKEN` **least-privilege** por job (default `contents: read`).
+- Actions referenciadas por tag, com **pin por SHA automatizado via Renovate** na primeira PR.
+
+**_Planejado_ (entra com Docker, deploy e publicação):**
+
+- **OpenSSF Scorecard** com badge público · **SBOM CycloneDX** por release.
 - **Trivy** (scan de imagem) e **hadolint** (lint de Dockerfile), reprovando HIGH/CRITICAL.
-- **CodeQL** (SAST), **gitleaks** + GitHub secret scanning (push protection), **dependency-review**, **OSV-Scanner**.
-- **Actions SHA-pinned** + `GITHUB_TOKEN` least-privilege por job; **Renovate** + Dependabot alerts.
+- **OSV-Scanner** · GitHub **secret scanning com push protection** e Dependabot alerts (settings de repo — dependem da publicação).
 
 Detalhes e threat model em **[`SECURITY.md`](./SECURITY.md)**.
 
