@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
+import { ProblemDetailsFilter } from './common/problem-details.filter.js';
 import { loadEnv } from './config/env.config.js';
 
 /**
@@ -19,6 +20,7 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
 
   app.use(helmet());
+  app.useGlobalFilters(new ProblemDetailsFilter()); // contrato de erro problem+json (RFC 9457)
   app.enableShutdownHooks(); // SIGTERM drena requests em voo e fecha recursos.
 
   // /api/v1/... para tudo, menos os probes de saúde (que ficam em /health/*).
