@@ -7,6 +7,8 @@
  * Trocar de provedor é trocar o binding do token, nada mais.
  */
 
+import type { MpPaymentStatus } from '@pix-live/core';
+
 /** Token de injeção do provedor (interfaces somem no runtime; DI precisa de um token). */
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');
 
@@ -33,7 +35,25 @@ export interface PixCharge {
   readonly expiresAt: Date;
 }
 
+/**
+ * Consulta AUTENTICADA de um pagamento no provedor. O webhook só diz "pagamento
+ * X mudou"; o status e o valor confiáveis vêm daqui — nunca do corpo do webhook
+ * (o HMAC não cobre o corpo). Ver contrato de segurança item 5.
+ */
+export interface RemotePayment {
+  readonly status: MpPaymentStatus;
+  /** Referência externa = id do nosso pedido. */
+  readonly externalReference: string;
+  readonly amountCents: number;
+}
+
 /** Contrato que todo provedor de pagamento (mock ou real) implementa. */
 export interface PaymentProvider {
   createPixCharge(input: CreatePixChargeInput): Promise<PixCharge>;
+  /**
+   * Consulta o pagamento no provedor. `null` = o provedor CONFIRMA que não existe
+   * (→ pagamento_desconhecido). Lança em erro de rede/infra (→ erro/500, MP reentrega).
+   * A distinção é obrigatória — ver contrato item 7.
+   */
+  getPayment(providerPaymentId: string): Promise<RemotePayment | null>;
 }

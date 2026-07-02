@@ -8,6 +8,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from './health/health.module.js';
 import { PaymentModule } from './payment/payment.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { WebhookModule } from './webhook/webhook.module.js';
 import { validateEnv } from './config/env.config.js';
 
 const isDevelopment = process.env['NODE_ENV'] === 'development';
@@ -48,6 +49,7 @@ const isDevelopment = process.env['NODE_ENV'] === 'development';
     PrismaModule,
     PaymentModule,
     HealthModule,
+    WebhookModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
