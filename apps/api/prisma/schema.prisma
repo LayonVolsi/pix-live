@@ -1,0 +1,150 @@
+// Modelo de dados do Pix Live.
+//
+// Regra de ouro: dinheiro é INTEIRO em centavos (nunca float) e o "não duplica"
+// é garantido pelo BANCO (constraint de unicidade em transação), não por lógica
+// em memória. Os enums abaixo espelham os tipos de @pix-live/core.
+//
+// Nomes de coluna/tabela em snake_case (@map/@@map); campos do client em camelCase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Estado do pedido. Espelha OrderStatus de @pix-live/core.
+enum OrderStatus {
+  draft
+  pending
+  paid
+  rejected
+  cancelled
+  expired
+
+  @@map("order_status")
+}
+
+/// Veredito de processamento de um webhook. Espelha Verdict de @pix-live/core.
+enum WebhookVerdict {
+  processado
+  ts_suspeito
+  duplicata_ignorada
+  assinatura_invalida
+  pagamento_desconhecido
+  erro
+
+  @@map("webhook_verdict")
+}
+
+/// Origem do evento de webhook. `admin_replay` (core usa 'admin-replay') só é
+/// gravado por chamada em processo vinda da rota /admin autenticada — NUNCA por
+/// valor aceito da rota pública.
+enum WebhookSource {
+  mercadopago
+  admin_replay
+
+  @@map("webhook_source")
+}
+
+/// Catálogo mínimo: 1 produto fixo, 1 preço. Sem carrinho, sem variação.
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  description String
+  amountCents Int      @map("amount_cents")
+  currency    String   @default("BRL")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("products")
+}
+
+/// Pedido. `payerEmail` é armazenado cru para operação, mas SEMPRE mascarado no
+/// backend antes de ir para a resposta pública (nunca só via CSS).
+model Order {
+  id           String      @id @default(uuid()) @db.Uuid
+  publicRef    String      @unique @map("public_ref")
+  productId    String      @map("product_id") @db.Uuid
+  amountCents  Int         @map("amount_cents")
+  currency     String      @default("BRL")
+  status       OrderStatus @default(draft)
+  payerEmail   String?     @map("payer_email")
+  // Único quando presente; múltiplos nulos são permitidos (pedido ainda sem pagamento).
+  mpPaymentId  String?     @unique @map("mp_payment_id")
+  qrEmv        String?     @map("qr_emv")
+  qrPngBase64  String?     @map("qr_png_base64")
+  pixExpiresAt DateTime?   @map("pix_expires_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  paidAt       DateTime?   @map("paid_at")
+
+  product        Product                 @relation(fields: [productId], references: [id])
+  idempotencyKey OutboundIdempotencyKey?
+  credit         OrderCredit?
+  webhookEvents  WebhookEvent[]
+
+  @@index([status])
+  @@map("orders")
+}
+
+/// Idempotência de SAÍDA: garante que criar a cobrança no provedor não duplica em
+/// retry de rede. PK = id do pedido (uma cobrança por pedido).
+model OutboundIdempotencyKey {
+  key                      String   @id
+  orderId                  String   @unique @map("order_id") @db.Uuid
+  providerResponseSnapshot Json     @map("provider_response_snapshot")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("outbound_idempotency_keys")
+}
+
+/// Trilha de auditoria: cada webhook recebido vira uma linha com veredito,
+/// validade de assinatura e latência. Alimenta o painel de conciliação.
+model WebhookEvent {
+  id              String         @id @default(uuid()) @db.Uuid
+  receivedAt      DateTime       @default(now()) @map("received_at")
+  source          WebhookSource
+  signatureHeader String?        @map("signature_header")
+  requestIdHeader String?        @map("request_id_header")
+  tsFromSignature String?        @map("ts_from_signature")
+  signatureValid  Boolean        @map("signature_valid")
+  verdict         WebhookVerdict
+  mpPaymentId     String?        @map("mp_payment_id")
+  relatedOrderId  String?        @map("related_order_id") @db.Uuid
+  processingMs    Int            @map("processing_ms")
+  rawBody         String         @map("raw_body")
+  error           String?
+
+  relatedOrder Order? @relation(fields: [relatedOrderId], references: [id])
+
+  // Dedupe de delivery real do MP por request-id. Composto com `source` para não
+  // colidir com admin_replay (e nulos são distintos no Postgres, então replays
+  // sem request-id não conflitam). Equivale, na prática, a um índice único parcial
+  // em request_id_header para source=mercadopago.
+  @@unique([source, requestIdHeader])
+  @@index([receivedAt])
+  @@map("webhook_events")
+}
+
+/// O coração do "dinheiro não duplica": crédito exatamente-uma-vez por pagamento.
+/// A constraint de unicidade em `mpPaymentId` sob transação resolve a corrida
+/// entre entregas simultâneas do provedor — no BANCO, não em memória.
+model OrderCredit {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @unique @map("order_id") @db.Uuid
+  mpPaymentId String   @unique @map("mp_payment_id")
+  amountCents Int      @map("amount_cents")
+  creditedAt  DateTime @default(now()) @map("credited_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_credits")
+}
