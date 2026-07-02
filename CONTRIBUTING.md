@@ -21,29 +21,31 @@ se fosse um produto de time, de propósito.
 
 Monorepo com **pnpm workspaces** (`pnpm-workspace.yaml`: `packages/*` e `apps/*`).
 
-| Pacote          | Estado      | O que é                                                                                         |
-| --------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `packages/core` | **pronto**  | Domínio puro em TS: HMAC, idempotência, máquina de estados, money. Sem framework, 100% testado. |
-| `apps/api`      | _planejado_ | API NestJS (webhook, rotas admin, Prisma/Postgres).                                             |
-| `apps/web`      | _planejado_ | Front React + Vite (loja, painel de conciliação).                                               |
+| Pacote          | Estado      | O que é                                                                                                                        |
+| --------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/core` | **pronto**  | Domínio puro em TS: HMAC, idempotência, máquina de estados, money. Sem framework, cobertura ≥90% imposta.                      |
+| `apps/api`      | **pronto**  | API NestJS completa (webhook 3 camadas, rotas admin, loja, painel, Prisma/Postgres), provada por integração com Postgres real. |
+| `apps/web`      | _planejado_ | Front React + Vite (loja, página de pagamento, painel de conciliação).                                                         |
 
-Enquanto `apps/api` e `apps/web` não existem, os comandos que dependem deles (Docker, Prisma,
-e2e) ainda não se aplicam — estão documentados aqui porque chegam junto com esses apps.
+Enquanto o `apps/web` e o Docker não existem, os comandos que dependem deles (compose, e2e)
+ainda não se aplicam — estão documentados aqui porque chegam junto com essas peças.
 
 ## Pré-requisitos
 
 - **Node.js** na versão fixada em [`.node-version`](./.node-version) / [`.nvmrc`](./.nvmrc)
   (atualmente **20**). Use `nvm use` ou `fnm use` para casar a versão local. O campo
-  `engines` do `package.json` exige `node >=20`. A matriz de CI roda os testes nas linhas
-  LTS ativas (planejado: Node 22 e 24).
+  `engines` do `package.json` exige `node >=20`. A matriz de CI roda os testes em
+  **Node 20 e 22**; 22/24 entram quando a stack permitir (o porquê está no
+  [`adr/0004`](./adr/0004-nest10-esm-nodenext.md)).
 - **pnpm** via **corepack** (recomendado) — a versão é fixada por `packageManager`
   (`pnpm@9.15.4`). Ative com:
   ```bash
   corepack enable
   corepack prepare pnpm@9.15.4 --activate
   ```
-- **Docker** + **Docker Compose** — só para o fluxo local full-stack (_planejado_, chega com
-  `apps/api`/`apps/web`). Não é necessário para trabalhar apenas no `packages/core`.
+- **Docker** + **Docker Compose** — só para o fluxo local full-stack (_planejado_, chega com o
+  Dockerfile/compose e o `apps/web`). Não é necessário para o `packages/core` nem para a API
+  (que roda contra qualquer Postgres local).
 - **Git** com **assinatura de commit** configurada (GPG ou SSH). A branch protection de `main`
   exige commits verificados — configure `git config commit.gpgsign true` (ou o equivalente
   SSH) antes de contribuir. Veja "Fluxo de PR e branch protection".
@@ -63,12 +65,12 @@ webhook secret) vivem em env/secret group do host de deploy, jamais no repo.
 
 ## Rodando localmente
 
-### Hoje (core-only)
+### Hoje — core + API
 
 O `packages/core` roda 100% offline, sem Docker e sem banco:
 
 ```bash
-pnpm test          # roda a suíte (vitest run)
+pnpm test          # roda a suíte (vitest run) — os testes de integração pulam sem DATABASE_URL
 pnpm test:watch    # modo watch durante desenvolvimento
 pnpm test:cov      # com cobertura (thresholds impostos — ver "Padrão de qualidade")
 pnpm typecheck     # tsc --noEmit em todos os pacotes (TS strict)
@@ -76,9 +78,23 @@ pnpm build         # build de todos os pacotes (tsc por pacote)
 pnpm lint          # ESLint (flat config) em todo o repo
 ```
 
+A **API** roda contra qualquer Postgres local (sem Docker):
+
+```bash
+cd apps/api
+DATABASE_URL="postgresql://..." pnpm run db:migrate   # prisma migrate deploy
+DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia produto + pedido pago do wow
+cd ../..
+pnpm build && node apps/api/dist/main.js              # lê o .env da raiz
+```
+
+Os testes de **integração** (Supertest + Postgres real) rodam com
+`DATABASE_URL=... pnpm test`; sem a variável eles **pulam** (`describe.skipIf`) e a suíte
+continua verde — é assim que o CI unit fica determinístico sem banco.
+
 ### Full-stack local — `docker compose up` (_planejado_)
 
-Quando `apps/api` e `apps/web` existirem, o alvo é **um comando** subir tudo com seed
+Quando o compose e o `apps/web` existirem, o alvo é **um comando** subir tudo com seed
 determinístico (incluindo o pedido já pago pré-semeado) em **modo mock do Mercado Pago**,
 sem precisar de conta no MP e sem rede:
 
@@ -126,7 +142,8 @@ estruturado é obrigatório no app).
 
 - **ESLint 9 flat config** (`eslint.config.mjs`): `typescript-eslint` type-checked +
   `eslint-plugin-security`. Regras notáveis: `@typescript-eslint/no-floating-promises: error`,
-  `no-console: error`. Na CI o lint roda com `--max-warnings=0` (warning = reprova).
+  `no-console: error`. A flag `--max-warnings=0` no job de lint do CI é _planejada_
+  (hardening de CI).
 - **Prettier** é o formatador único (`.prettierrc.json`: aspas simples, trailing comma `all`,
   `printWidth` 100, `semi`). `.editorconfig` normaliza charset/EOL/indent; `format:check` é gate.
 
@@ -134,9 +151,10 @@ estruturado é obrigatório no app).
 
 Configurada em `vitest.config.ts` sobre `packages/*/src`:
 
-- **Atual (core-only):** ≥90% em linhas, branches, funções e statements — imposto no `test:cov`.
-- **Alvo quando os apps entrarem (`SPEC.md`):** `packages/core` ≥90% linhas/branches, global
-  ≥80%. Badge de cobertura no README.
+- **Atual:** `packages/*/src` com ≥90% em linhas, branches, funções e statements — imposto no
+  `test:cov` (o `apps/api` ainda está fora da medição de cobertura).
+- **Alvo (_planejado_, entra com o `apps/web`):** gate global ≥80% incluindo `apps/`
+  (`SPEC.md`). Badge de cobertura no README.
 
 ### Mutation testing (_planejado_)
 
@@ -149,7 +167,7 @@ máquina de estados) é o alvo. A config do Stryker ainda não está no repo; en
 
 Todo commit segue [Conventional Commits](https://www.conventionalcommits.org/), validado por
 **commitlint** (`commitlint.config.cjs` → `@commitlint/config-conventional`) no hook
-`commit-msg` **e** no título do PR via CI.
+`commit-msg`; a validação do título do PR via CI é _planejada_.
 
 Formato:
 
@@ -227,9 +245,9 @@ porque o único aprovador possível é o próprio autor.
 A escolha consciente, portanto, é **não** fingir revisão humana que não existe, e sim deslocar
 o gate de qualidade para onde ele é real e não-negociável:
 
-- o **conjunto de checks required** da CI (lint, format, typecheck, testes, cobertura, mutation,
-  segurança/supply-chain: CodeQL, gitleaks, dependency-review, Trivy, OSV, Scorecard) — nenhum
-  merge com vermelho;
+- o **conjunto de checks required** da CI — hoje: lint, format, typecheck, testes com cobertura,
+  CodeQL, gitleaks e dependency-review; _planejados_ para o endurecimento: mutation, Trivy, OSV e
+  Scorecard — nenhum merge com vermelho (a branch protection em si é configurada na publicação);
 - a **disciplina de PR** (nada direto em `main`, branch por mudança, history linear,
   conversation resolution, commits assinados);
 - a **branch protection** que vale inclusive para o administrador — o autor não consegue burlar
@@ -243,6 +261,7 @@ um segundo mantenedor, a regra de required review passa a fazer sentido e deve s
 ## Segurança
 
 Vulnerabilidades: siga o `SECURITY.md` (política de disclosure e threat model). Nunca comite
-segredos — o repo tem gitleaks + secret scanning com push protection. Se um segredo vazar no
-history, rotacione-o (não basta apagar o commit). O `.env.example` documenta as variáveis; os
+segredos — o repo roda gitleaks no CI sobre o history completo; secret scanning com push
+protection (setting do GitHub) entra na publicação. Se um segredo vazar no history, rotacione-o
+(não basta apagar o commit). O `.env.example` documenta as variáveis; os
 valores reais só no host de deploy.
