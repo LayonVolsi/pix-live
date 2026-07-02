@@ -17,6 +17,7 @@ const EnvSchema = z.object({
     .refine((v) => v.startsWith('postgres'), {
       message: 'DATABASE_URL deve ser uma URL Postgres (postgres:// ou postgresql://)',
     }),
+  PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
