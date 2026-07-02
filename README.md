@@ -56,7 +56,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 - Endpoint público de webhook: raw body, HMAC em tempo constante, processamento idempotente, cap de tamanho de corpo e `Content-Type` validado.
 - **Painel de conciliação público** (leitura): pedidos e log de webhooks com veredito, validade de assinatura e latência — **e-mail do pagador mascarado no backend** (nunca só CSS).
 - Um pedido **já pago pré-semeado** para alcançar o wow em <10s direto pelo link.
-- **Modo mock MP** para rodar 100% offline (`docker compose up` e CI, sem conta no Mercado Pago).
+- **Modo mock MP** para rodar 100% offline no dev local e no CI, sem conta no Mercado Pago (`docker compose up` de um comando é _planejado_ — entra com o Dockerfile).
 - API versionada (`/api/v1`), erro em `problem+json` (RFC 9457), OpenAPI/Swagger, health `live`/`ready` e graceful shutdown.
 
 ### ⛔ NÃO faz
@@ -130,23 +130,35 @@ Diagrama detalhado e fluxos em **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**.
 
 ## 🚀 Rode em 30s
 
-Modo mock — **100% offline, sem conta no Mercado Pago**:
+Modo mock — **100% offline, sem conta no Mercado Pago**. O `docker compose up` de um
+comando é _planejado_ (entra junto com o Dockerfile); hoje o caminho é um Postgres
+local + pnpm:
 
 ```bash
 git clone https://github.com/racionalmengo/pix-live.git
 cd pix-live
-cp .env.example .env      # PAYMENT_PROVIDER=mock já vem por padrão
-docker compose up          # sobe API + Postgres + web, com seed (inclui o pedido pago pré-semeado)
+corepack enable && pnpm install
+cp .env.example .env       # PAYMENT_PROVIDER=mock já vem por padrão
+# aponte DATABASE_URL do .env para um Postgres local vazio, e então:
+cd apps/api
+DATABASE_URL="postgresql://..." pnpm run db:migrate   # aplica as migrations
+DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia o pedido pago do wow
+cd ../..
+pnpm build && node apps/api/dist/main.js              # API em http://localhost:3000
 ```
 
-Abra o painel de conciliação, clique **"reenviar este webhook"** no pedido pré-semeado e veja o contador. O `.env.example` é curto e comentado — nenhum segredo real, o `DEMO_ADMIN_TOKEN` é explicitamente não-secreto:
+Consulte o painel de conciliação (`GET /api/v1/reconciliation`) e reenvie o webhook do
+pedido pré-semeado pela rota admin para ver o contador. O `.env.example` é curto e
+comentado — nenhum segredo real, o `DEMO_TOKEN` é explicitamente não-secreto:
 
 ```dotenv
-PAYMENT_PROVIDER=mock                 # "mock" offline · "mercadopago" usa o sandbox
+NODE_ENV=development
+PORT=3000
 DATABASE_URL=postgresql://pixlive:pixlive@localhost:5432/pixlive?schema=public
-MP_ACCESS_TOKEN=                      # só quando PAYMENT_PROVIDER=mercadopago
-MP_WEBHOOK_SECRET=
-DEMO_ADMIN_TOKEN=demo-nao-secreto     # NÃO é segredo — rotulado na UI
+PAYMENT_PROVIDER=mock                              # "mock" offline · "mercadopago" usa o sandbox (fase 4)
+MP_WEBHOOK_SECRET=troque-este-segredo-de-dev-1234  # obrigatório em qualquer modo, mínimo 16 chars
+DEMO_TOKEN=demo-nao-secreto                        # NÃO é segredo — a UI rotula como público
+# MP_ACCESS_TOKEN=                                 # só na fase 4 (PAYMENT_PROVIDER=mercadopago)
 ```
 
 Só o **domínio puro** (`packages/core`)? `pnpm install && pnpm test`.
