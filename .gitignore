@@ -26,3 +26,6 @@ pnpm-debug.log*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Instruções internas de build (Claude Code) — NUNCA no repo público
+CLAUDE.md
