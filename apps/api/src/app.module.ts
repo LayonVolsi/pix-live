@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from './health/health.module.js';
 import { PaymentModule } from './payment/payment.module.js';
@@ -39,9 +41,14 @@ const isDevelopment = process.env['NODE_ENV'] === 'development';
           : {}),
       },
     }),
+    // Rate limit global por IP (120 req/min). Webhook e /admin terão limites
+    // próprios mais agressivos via @Throttle. Depende de `trust proxy` correto
+    // (main.ts) para o IP ser real atrás do LB — senão é decorativo (laudo).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     PaymentModule,
     HealthModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

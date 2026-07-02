@@ -1,6 +1,7 @@
 import { Controller, Get, Logger, VERSION_NEUTRAL } from '@nestjs/common';
 import { HealthCheck, HealthCheckError, HealthCheckService } from '@nestjs/terminus';
 import type { HealthCheckResult, HealthIndicatorResult } from '@nestjs/terminus';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /**
@@ -11,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
  * - `/health/live`  → o processo está vivo? (não checa dependências)
  * - `/health/ready` → o Postgres responde? (gate de tráfego)
  */
+@SkipThrottle()
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);

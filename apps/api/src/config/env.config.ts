@@ -8,17 +8,24 @@ import { z } from 'zod';
  * entram aqui conforme as camadas da API forem construídas — nunca lidos cru de
  * `process.env` fora deste ponto.
  */
-const EnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().max(65535).default(3000),
-  DATABASE_URL: z
-    .string()
-    .url()
-    .refine((v) => v.startsWith('postgres'), {
-      message: 'DATABASE_URL deve ser uma URL Postgres (postgres:// ou postgresql://)',
-    }),
-  PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
-});
+const EnvSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().positive().max(65535).default(3000),
+    DATABASE_URL: z
+      .string()
+      .url()
+      .refine((v) => v.startsWith('postgres'), {
+        message: 'DATABASE_URL deve ser uma URL Postgres (postgres:// ou postgresql://)',
+      }),
+    PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
+    // Segredo do webhook (verificação HMAC). Mínimo defensivo de comprimento.
+    MP_WEBHOOK_SECRET: z.string().min(16, 'MP_WEBHOOK_SECRET deve ter ao menos 16 caracteres'),
+  })
+  .refine((env) => !(env.NODE_ENV === 'production' && env.PAYMENT_PROVIDER === 'mock'), {
+    message: 'PAYMENT_PROVIDER=mock é proibido em produção (trava de segurança)',
+    path: ['PAYMENT_PROVIDER'],
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 

@@ -69,8 +69,24 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       const detail = typeof res === 'string' ? res : (this.messageOf(res) ?? exception.message);
       return { status, detail };
     }
-    // Qualquer coisa que não seja HttpException é erro interno inesperado.
+    // Erros de middleware (body-parser: PayloadTooLargeError 413, JSON malformado
+    // 400) carregam um `status`/`statusCode` numérico mas NÃO são HttpException.
+    // Mapeamos pelo status e devolvemos detalhe GENÉRICO — não ecoar a mensagem
+    // interna do parser (evita vazar detalhe de implementação).
+    const status = this.statusOf(exception);
+    if (status !== undefined && status >= 400 && status < 500) {
+      return { status, detail: TITLES[status] ?? 'Requisição inválida' };
+    }
+    // Resto: erro interno inesperado.
     return { status: HttpStatus.INTERNAL_SERVER_ERROR, detail: 'Erro interno.' };
+  }
+
+  /** Lê um status numérico de erros que não são HttpException (ex.: body-parser). */
+  private statusOf(exception: unknown): number | undefined {
+    if (typeof exception !== 'object' || exception === null) return undefined;
+    const record = exception as { status?: unknown; statusCode?: unknown };
+    const raw = typeof record.status === 'number' ? record.status : record.statusCode;
+    return typeof raw === 'number' ? raw : undefined;
   }
 
   /** Extrai a mensagem de um corpo de HttpException sem vazar o objeto cru. */

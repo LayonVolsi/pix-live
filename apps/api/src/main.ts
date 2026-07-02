@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
@@ -16,8 +17,19 @@ import { loadEnv } from './config/env.config.js';
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // rawBody: true preserva os bytes originais para o HMAC do webhook.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
   app.useLogger(app.get(Logger));
+
+  // Cap de tamanho NO PARSER (não em checagem de header, que é bypassável via
+  // chunked) — o mesmo parser que alimenta req.rawBody. Ver laudo de segurança.
+  app.useBodyParser('json', { limit: '32kb' });
+  // Exatamente 1 hop de proxy confiável (o LB da Render) — NUNCA `true`, senão
+  // um X-Forwarded-For forjado zeraria o rate limit. Confirmar o hop no deploy.
+  app.set('trust proxy', 1);
 
   app.use(helmet());
   app.useGlobalFilters(new ProblemDetailsFilter()); // contrato de erro problem+json (RFC 9457)
