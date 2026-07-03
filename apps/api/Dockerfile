@@ -2,9 +2,9 @@
 # Context de build: a RAIZ do monorepo (docker build -f apps/api/Dockerfile .).
 # O MESMO Dockerfile serve o compose local (modo mock) e o deploy (Render).
 #
-# TODO(digest): pinar a base por digest (@sha256:...) na verificação com Docker
-# ligado — gate do SPEC; o pré-push cobra com grep antes do repo ir a público.
-FROM node:20-bookworm-slim AS base
+# Bases pinadas por digest (gate do SPEC; resolvidos na verificação com Docker
+# de 2026-07-03 via `docker buildx imagetools inspect`; Renovate mantém).
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # pnpm via corepack na versão exata do packageManager do repo. O engine nativo
 # do Prisma precisa de libssl3 em runtime — o node:slim não garante openssl
@@ -56,7 +56,7 @@ RUN pnpm --filter @pix-live/api deploy --prod /out \
   && pnpm --filter @pix-live/api exec prisma generate --schema=/out/prisma/schema.prisma
 
 # ── runtime: mínimo, non-root, sem toolchain, sem devDependencies.
-FROM node:20-bookworm-slim AS runtime
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS runtime
 # hadolint ignore=DL3008
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \
