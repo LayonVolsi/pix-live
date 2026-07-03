@@ -1,0 +1,89 @@
+# Demo local completa — 100% offline, modo mock: `docker compose up` sobe
+# Postgres + migrations/seed + API + front num comando (gate do SPEC).
+# Sem chave `version` (obsoleta na Compose Specification); o
+# service_completed_successfully exige Compose CLI >= 2.20 (F6 — conferir
+# `docker compose version` na verificação com Docker ligado).
+
+services:
+  postgres:
+    image: postgres:16-alpine # TODO(digest): pinar na verificação com Docker
+    environment:
+      POSTGRES_USER: pixlive
+      # Credencial de DEV do banco DESCARTÁVEL da demo (mesma do .env.example,
+      # não-secreta por design); banco sem porta publicada — rede interna só.
+      POSTGRES_PASSWORD: pixlive
+      POSTGRES_DB: pixlive
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pixlive -d pixlive']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      # Named volume persistente (D10): o seed é idempotente e o histórico do
+      # painel sobrevive a re-up; `docker compose down -v` reseta a demo.
+      - pgdata:/var/lib/postgresql/data
+
+  # One-shot: migrations + seed rodam no estágio `build` da imagem da API
+  # (prisma CLI + tsx são devDeps — o runtime segue só com deps de produção).
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: build
+    command:
+      - sh
+      - -c
+      - pnpm --filter @pix-live/api run db:migrate && pnpm --filter @pix-live/api run db:seed
+    environment:
+      # Host = nome do serviço na rede do compose (Q4), nunca localhost.
+      DATABASE_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    init: true # docker-init como PID1; node recebe SIGTERM direto (D4)
+    environment:
+      # test, NUNCA development: mock é proibido em produção (trava Zod) e
+      # development ligaria o transport pino-pretty — devDependency ausente
+      # no runtime --prod → crash de boot (B1/F1, a crítica do pipeline).
+      NODE_ENV: test
+      PORT: '3000'
+      DATABASE_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
+      PAYMENT_PROVIDER: mock
+      # Defaults NÃO-secretos da demo (idênticos ao .env.example, rotulados
+      # na UI); override único via ambiente do shell (D7).
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-troque-este-segredo-de-dev-1234}
+      DEMO_TOKEN: ${DEMO_TOKEN:-demo-nao-secreto}
+    # B2: porta NUNCA publicada no host — o nginx é o ÚNICO hop de entrada.
+    # trust proxy = 1 assume exatamente 1 proxy confiável; publicar 3000
+    # abriria bypass do rate-limit via X-Forwarded-For forjado.
+    expose:
+      - '3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # B4: MESMA fonte do DEMO_TOKEN da api — o token baked no bundle e o
+        # validado pelo guard nunca dessincronizam (dessincronia = 401 no wow).
+        VITE_DEMO_TOKEN: ${DEMO_TOKEN:-demo-nao-secreto}
+    ports:
+      - '8080:8080'
+    depends_on:
+      # Q3: o proxy só abre quando a API está saudável (HEALTHCHECK do
+      # Dockerfile em /health/live) — elimina a janela de 502 logo após o up.
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
