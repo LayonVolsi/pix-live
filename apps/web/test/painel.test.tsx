@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,8 +8,9 @@ import type { PanelView } from '../src/api/types';
 import { Painel } from '../src/pages/Painel';
 
 const painelMock = vi.hoisted(() => vi.fn());
+const reenviarMock = vi.hoisted(() => vi.fn());
 vi.mock('../src/api/client', () => ({
-  api: { painel: painelMock },
+  api: { painel: painelMock, reenviarWebhook: reenviarMock },
   ApiError: class extends Error {},
 }));
 
@@ -88,5 +89,27 @@ describe('Painel de conciliação', () => {
     expect(screen.getAllByText('✓ válida')).toHaveLength(2);
     expect(screen.getByText('12 ms')).toBeDefined();
     expect(screen.getByText(/leitura pública por design/i)).toBeDefined();
+  });
+
+  it('replay só em evento processado; C7: pending desabilita e não emite 2ª chamada', async () => {
+    painelMock.mockResolvedValue(VIEW);
+    let resolver: (v: { verdict: string }) => void = () => undefined;
+    reenviarMock.mockImplementation(
+      () => new Promise<{ verdict: string }>((resolve) => (resolver = resolve)),
+    );
+    render(renderPainel());
+
+    // Só o evento 'processado' ganha o botão (o 'duplicata_ignorada' não).
+    const botoes = await screen.findAllByRole('button', { name: /reenviar este webhook/i });
+    expect(botoes).toHaveLength(1);
+
+    fireEvent.click(botoes[0]!);
+    const ocupado = await screen.findByRole('button', { name: /reenviando/i });
+    expect(ocupado).toHaveProperty('disabled', true);
+    fireEvent.click(ocupado);
+    expect(reenviarMock).toHaveBeenCalledTimes(1);
+    expect(reenviarMock).toHaveBeenCalledWith('evt-1');
+
+    resolver({ verdict: 'duplicata_ignorada' });
   });
 });

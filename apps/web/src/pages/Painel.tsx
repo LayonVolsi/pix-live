@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -23,6 +23,14 @@ export function Painel(): ReactElement {
     queryFn: api.painel,
     refetchInterval: POLLING_PAINEL_MS,
     refetchIntervalInBackground: false,
+  });
+
+  // O WOW: reenvia o webhook em processo (rota admin) e a idempotência bloqueia
+  // a 2ª entrega — o contador do pedido vira "processado 1× · bloqueado 1×".
+  const queryClient = useQueryClient();
+  const reenviar = useMutation({
+    mutationFn: (eventId: string) => api.reenviarWebhook(eventId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['panel'] }),
   });
 
   if (painel.isPending) {
@@ -142,6 +150,9 @@ export function Painel(): ReactElement {
               <th className="px-3 py-2" scope="col">
                 Pedido
               </th>
+              <th className="px-3 py-2" scope="col">
+                Ação
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -176,11 +187,28 @@ export function Painel(): ReactElement {
                     <span className="text-tinta-fraca">—</span>
                   )}
                 </td>
+                <td className="px-3 py-2">
+                  {e.verdict === 'processado' ? (
+                    <button
+                      className="whitespace-nowrap border border-tinta bg-white px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-wider hover:bg-papel disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={reenviar.isPending}
+                      aria-busy={reenviar.isPending && reenviar.variables === e.id}
+                      onClick={() => reenviar.mutate(e.id)}
+                      type="button"
+                    >
+                      {reenviar.isPending && reenviar.variables === e.id
+                        ? 'Reenviando…'
+                        : 'Reenviar este webhook'}
+                    </button>
+                  ) : (
+                    <span className="text-tinta-fraca">—</span>
+                  )}
+                </td>
               </tr>
             ))}
             {events.length === 0 ? (
               <tr>
-                <td className="px-3 py-6 text-center text-tinta-fraca" colSpan={6}>
+                <td className="px-3 py-6 text-center text-tinta-fraca" colSpan={7}>
                   Nenhum webhook recebido ainda.
                 </td>
               </tr>
