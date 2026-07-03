@@ -56,7 +56,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 - Endpoint público de webhook: raw body, HMAC em tempo constante, processamento idempotente e cap de tamanho de corpo; só `application/json` é parseado — corpo em outro formato falha fechado em 401.
 - **Painel de conciliação público** (leitura): pedidos e log de webhooks com veredito, validade de assinatura e latência — **e-mail do pagador mascarado no backend** (nunca só CSS).
 - Um pedido **já pago pré-semeado** para alcançar o wow em <10s direto pelo link.
-- **Modo mock MP** para rodar 100% offline no dev local e no CI, sem conta no Mercado Pago (`docker compose up` de um comando é _planejado_ — entra com o Dockerfile).
+- **Modo mock MP** para rodar 100% offline no dev local e no CI, sem conta no Mercado Pago — `docker compose up` sobe Postgres, migrations, seed, API e front num comando.
 - API versionada (`/api/v1`), erro em `problem+json` (RFC 9457), OpenAPI/Swagger, health `live`/`ready` e graceful shutdown.
 
 ### ⛔ NÃO faz
@@ -92,7 +92,7 @@ O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em proce
 
 - **API:** helmet + rate limit estratificado por rota (global, webhook, criação de pedido e admin) + validação Zod do **env** (fail-fast no boot); o corpo do webhook é tratado como input hostil, com parsing defensivo e cap de 32kb no parser. CORS restrito e request timeout são _planejados_ — entram com o `apps/web` (origem real conhecida) e com teste de latência contra o pior caso do provedor. Sem chamada HTTP de saída no modo mock (quando o adapter MP entrar, o host é fixo — sem SSRF), sem card data (Pix-only).
 - **Site estático** (_planejado_ — entra com o `apps/web`): NÃO herda o helmet da API — CSP restrita e security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors`) definidos no próprio host. O QR embutido como base64 permite CSP sem `img-src` externo.
-- **Container** (_planejado_ — entra com o Dockerfile): multi-stage, usuário **non-root**, base pinada por digest, `HEALTHCHECK`, signal handling PID1 correto, `.dockerignore`, deps de produção apenas — verificado com Trivy/hadolint antes do deploy.
+- **Container:** multi-stage, usuário **non-root**, deps de produção apenas, `.dockerignore` hermético, `HEALTHCHECK` de **liveness pura** (`/health/live`; readiness fica pro gate de tráfego — nunca pra reciclar processo) e signal handling correto (CMD exec-form + graceful shutdown). No compose, a API **não publica porta no host**: o nginx do front é o único hop — casa com `trust proxy = 1` e preserva o rate-limit por IP real. Base pinada por tag exata; **pin por digest + Trivy/hadolint fecham como gate antes do deploy** (_planejado_ — exige Docker ativo).
 - **Supply chain:** `GITHUB_TOKEN` com permissões mínimas por job; actions referenciadas por tag hoje, com **pin por SHA automatizado via Renovate** na primeira PR (`helpers:pinGitHubActionDigests`).
 
 Threat model completo e política de disclosure em **[`SECURITY.md`](./SECURITY.md)**.
@@ -130,13 +130,24 @@ Diagrama detalhado e fluxos em **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**.
 
 ## 🚀 Rode em 30s
 
-Modo mock — **100% offline, sem conta no Mercado Pago**. O `docker compose up` de um
-comando é _planejado_ (entra junto com o Dockerfile); hoje o caminho é um Postgres
-local + pnpm:
+Modo mock — **100% offline, sem conta no Mercado Pago**:
 
 ```bash
 git clone https://github.com/racionalmengo/pix-live.git
 cd pix-live
+docker compose up --build   # Postgres + migrations + seed + API + front
+```
+
+Abra **http://localhost:8080** — loja, página de pagamento e painel de conciliação ao
+vivo. O pedido pago pré-semeado já aparece no painel: clique **"Reenviar webhook"** e
+veja a idempotência bloquear a segunda entrega (`processado 1× · bloqueado 1×`). A API
+não publica porta no host — tudo passa pelo front (`/api` é proxy do nginx), que é o
+único hop confiável do `trust proxy`.
+
+<details>
+<summary><strong>Sem Docker?</strong> Caminho manual (Postgres local + pnpm)</summary>
+
+```bash
 corepack enable && pnpm install
 cp .env.example .env       # PAYMENT_PROVIDER=mock já vem por padrão
 # aponte DATABASE_URL do .env para um Postgres local vazio, e então:
@@ -145,11 +156,13 @@ DATABASE_URL="postgresql://..." pnpm run db:migrate   # aplica as migrations
 DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia o pedido pago do wow
 cd ../..
 pnpm build && node apps/api/dist/main.js              # API em http://localhost:3000
+cd apps/web && VITE_DEMO_TOKEN=demo-nao-secreto pnpm dev   # front em http://localhost:5173
 ```
 
-Consulte o painel de conciliação (`GET /api/v1/reconciliation`) e reenvie o webhook do
-pedido pré-semeado pela rota admin para ver o contador. O `.env.example` é curto e
-comentado — nenhum segredo real, o `DEMO_TOKEN` é explicitamente não-secreto:
+</details>
+
+O `.env.example` é curto e comentado — nenhum segredo real, o `DEMO_TOKEN` é
+explicitamente não-secreto:
 
 ```dotenv
 NODE_ENV=development

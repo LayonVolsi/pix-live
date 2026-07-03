@@ -47,6 +47,16 @@ A partir da v1.0.0 este arquivo passa a ser mantido automaticamente por
 - Bloco eslint type-checked + security + `react/no-danger` + `jsx-a11y` +
   `react-hooks` para `apps/web/**/*.{ts,tsx}`; ADR 0005 (pins do front sob
   Node 18 local).
+- Fase container (escrita; verificação com Docker ativo pendente):
+  `.dockerignore` hermético; Dockerfile multi-stage da API (non-root, deps
+  de produção apenas, `HEALTHCHECK` de liveness pura em `/health/live`,
+  CMD exec-form, `NODE_ENV=production` baked com override do compose
+  documentado); Dockerfile do front (build Vite → nginx-unprivileged
+  non-root com `proxy_set_header` explícitos — o rate-limit por IP real
+  depende deles sob `trust proxy = 1`); `docker compose up` sobe
+  Postgres + migrate/seed one-shot + API (`NODE_ENV=test`, porta não
+  publicada no host) + front, 100% offline. Pin por digest + hadolint +
+  Trivy fecham como gate pré-deploy.
 
 ### Changed
 
