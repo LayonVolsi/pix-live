@@ -5,6 +5,7 @@ import { api, ApiError } from '../api/client';
 import { BotaoCopiar } from '../components/BotaoCopiar';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAgora } from '../hooks/useAgora';
+import { intervaloPollingPedido } from '../lib/polling';
 import { qrDataUri } from '../lib/qr';
 import { msRestante, rotuloRestante } from '../lib/tempo';
 
@@ -19,6 +20,10 @@ export function Pagamento(): ReactElement {
     queryKey: ['order', publicRef],
     queryFn: () => api.pedido(publicRef),
     enabled: publicRef !== '',
+    // Polling curto pausado quando a aba perde o foco (Page Visibility) e
+    // desligado em estado final/expirado — política pura em lib/polling.ts.
+    refetchInterval: (query) => intervaloPollingPedido(query.state.data, Date.now()),
+    refetchIntervalInBackground: false,
   });
 
   const aguardando = pedido.data?.status === 'pending';
