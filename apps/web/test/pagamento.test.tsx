@@ -9,8 +9,9 @@ import { BotaoCopiar } from '../src/components/BotaoCopiar';
 import { Pagamento } from '../src/pages/Pagamento';
 
 const pedidoMock = vi.hoisted(() => vi.fn());
+const simularMock = vi.hoisted(() => vi.fn());
 vi.mock('../src/api/client', () => ({
-  api: { pedido: pedidoMock },
+  api: { pedido: pedidoMock, simularConfirmacao: simularMock },
   ApiError: class extends Error {},
 }));
 
@@ -88,6 +89,34 @@ describe('Pagamento — cupom estático', () => {
     expect(await screen.findByText('Pago')).toBeDefined();
     expect(screen.queryByRole('img', { name: /qr code/i })).toBeNull();
     expect(screen.queryByRole('timer')).toBeNull();
+    expect(screen.queryByRole('button', { name: /simular confirmação/i })).toBeNull();
+  });
+
+  it('simular: desabilita em isPending, duplo-clique não emite 2ª chamada (C7)', async () => {
+    pedidoMock.mockResolvedValue(baseOrder({}));
+    let resolver: (v: { verdict: string }) => void = () => undefined;
+    simularMock.mockImplementation(
+      () => new Promise<{ verdict: string }>((resolve) => (resolver = resolve)),
+    );
+    render(renderPagamento());
+
+    const botao = await screen.findByRole('button', { name: /simular confirmação/i });
+    fireEvent.click(botao);
+    const ocupado = await screen.findByRole('button', { name: /emitindo webhook/i });
+    expect(ocupado).toHaveProperty('disabled', true);
+    fireEvent.click(ocupado);
+    expect(simularMock).toHaveBeenCalledTimes(1);
+    expect(simularMock).toHaveBeenCalledWith('PIX-abc123');
+
+    resolver({ verdict: 'processado' });
+  });
+
+  it('rótulo do token de demonstração está na copy (C8)', async () => {
+    pedidoMock.mockResolvedValue(baseOrder({}));
+    render(renderPagamento());
+    await screen.findByRole('button', { name: /simular confirmação/i });
+    expect(screen.getByText(/token de demonstração pública/i)).toBeDefined();
+    expect(screen.getByText(/não é credencial real/i)).toBeDefined();
   });
 });
 

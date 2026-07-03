@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -24,6 +24,12 @@ export function Pagamento(): ReactElement {
     // desligado em estado final/expirado — política pura em lib/polling.ts.
     refetchInterval: (query) => intervaloPollingPedido(query.state.data, Date.now()),
     refetchIntervalInBackground: false,
+  });
+
+  const queryClient = useQueryClient();
+  const simular = useMutation({
+    mutationFn: () => api.simularConfirmacao(publicRef),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', publicRef] }),
   });
 
   const aguardando = pedido.data?.status === 'pending';
@@ -122,6 +128,32 @@ export function Pagamento(): ReactElement {
                   <p className="mt-2 text-sm text-tinta-fraca">Código indisponível.</p>
                 )}
               </div>
+            </div>
+          ) : null}
+
+          {aguardando && !expirado ? (
+            <div className="mt-8 border-t border-dashed border-pauta pt-5">
+              <button
+                className="border-2 border-tinta bg-white px-6 py-2.5 font-mono text-xs font-bold uppercase tracking-widest hover:bg-papel disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={simular.isPending}
+                aria-busy={simular.isPending}
+                onClick={() => simular.mutate()}
+                type="button"
+              >
+                {simular.isPending ? 'Emitindo webhook…' : 'Simular confirmação (sandbox)'}
+              </button>
+              <p className="mt-2 max-w-prose text-xs text-tinta-fraca">
+                Emite um webhook assinado server-side contra o endpoint público real, via rota admin
+                com token de demonstração pública — <em>não é credencial real</em>. Nesta demo,
+                qualquer pedido do painel é alvo legítimo; o freio é o rate-limit.
+              </p>
+              {simular.isError ? (
+                <p className="mt-2 border-l-2 border-erro pl-3 text-sm text-erro" role="alert">
+                  {simular.error instanceof ApiError
+                    ? simular.error.message
+                    : 'Não foi possível simular a confirmação agora.'}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
