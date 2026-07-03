@@ -33,6 +33,28 @@ A partir da v1.0.0 este arquivo passa a ser mantido automaticamente por
 - Painel de conciliação (e-mail do pagador mascarado no backend) + seed do
   pedido pago pré-semeado (o caminho do wow).
 - ADRs 0001–0004 e `ARCHITECTURE.md`.
+- `apps/web` (React 18 + Vite 6 + Tailwind 3.4 + TanStack Query): loja de um
+  produto, página de pagamento (QR com sanity check de base64, copia-e-cola
+  acessível, contador derivado do relógio, polling de 2,5s pausado por Page
+  Visibility e que para em estado final) e painel de conciliação ao vivo com
+  o replay-wow. Botões de mutação desabilitam em `isPending` (duplo-clique
+  não duplica ação — coberto por teste). Erros HTTP viram catálogo fixo
+  pt-BR; corpo cru de resposta nunca chega à UI.
+- Painel de conciliação da API expõe `id` do evento e `orderPublicRef`
+  (vínculo evento→pedido em 1 JOIN) — os handles que o front consome.
+- Replay fail-closed: só eventos com veredito `processado` são reenviáveis,
+  também na API (não só na UI).
+- Bloco eslint type-checked + security + `react/no-danger` + `jsx-a11y` +
+  `react-hooks` para `apps/web/**/*.{ts,tsx}`; ADR 0005 (pins do front sob
+  Node 18 local).
+
+### Changed
+
+- **BREAKING:** `POST /api/v1/admin/orders/:id/simulate` virou
+  `POST /api/v1/admin/orders/:publicRef/simulate` — o PK interno não é mais
+  a chave (nenhuma view pública o expõe); `publicRef` é o handle público
+  consistente da API. Sem consumidor externo afetado (o front nasceu já no
+  contrato novo).
 
 ### Fixed
 

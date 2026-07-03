@@ -324,6 +324,19 @@ Para não haver overclaim, estes vetores estão **conscientemente fora** do mode
 - **Ações admin não são protegidas por segredo real** — o demo-token é público por design (§5). Em
   produção, essas ações seriam autenticadas de verdade e o botão "reenviar webhook" **não
   existiria** (ver `adr/0003` — honestidade sobre a affordance de demo).
+- **Qualquer pedido do painel é alvo legítimo de "simular"/"reenviar"** — o `publicRef` é público
+  (aparece no próprio painel de conciliação) e o demo-token também; logo, quem visita a demo pode
+  "pagar" ou reenviar o webhook de **qualquer** pedido listado, não só o seu. É intencional numa
+  demo de observabilidade pública sem dono de pedido; o freio real é o rate-limit por rota+IP
+  (10/min nas rotas `/admin`) e o replay ser fail-closed (só eventos `processado`).
+- **`webhook_events` cresce sem cota agregada nem TTL** — o rate-limit é por IP; abuso distribuído
+  e sustentado das ações de demo acumula linhas de auditoria sem teto (o painel só exibe as 100
+  mais recentes). Risco aceito: não há dinheiro nem PII real em jogo; expurgo/cota entram na fase
+  de deploy se o comportamento real justificar.
+- **O `qrEmv` do adapter mock embute o id interno do pedido** (`MOCK-PIX|...|order=<uuid>|...`) e
+  ele aparece na página pública de pagamento em modo mock. Risco aceito: o mock é **proibido em
+  produção** pelo gate de env (Zod), o id não destrava nenhuma ação (as rotas admin usam
+  `publicRef`/id de evento), e o formato sintético deixa óbvio que não é um EMV real.
 - **Não processa dinheiro real** — é sandbox; não há defesa de fundos reais a se fazer.
 - **Não é uma biblioteca de pagamentos reutilizável** — é uma demonstração focada de UMA integração.
 - **Sem defesa contra ataque de disponibilidade em escala** (DDoS volumétrico) além do rate limit —
