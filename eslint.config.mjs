@@ -60,8 +60,9 @@ export default tseslint.config(
     },
   },
   {
-    // Arquivos de configuração na raiz: sem type-check, com globals de Node.
-    files: ['*.{mjs,cjs,ts}'],
+    // Arquivos de configuração (raiz e dos workspaces): sem type-check, com
+    // globals de Node. O glob raiz sozinho não casa subpastas (matchBase off).
+    files: ['*.{mjs,cjs,ts}', 'apps/*/*.{mjs,cjs}'],
     languageOptions: { globals: { ...globals.node } },
   },
   prettier,

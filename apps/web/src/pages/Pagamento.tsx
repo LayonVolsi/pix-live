@@ -11,8 +11,8 @@ import { msRestante, rotuloRestante } from '../lib/tempo';
 
 /**
  * Página de pagamento — o "cupom fiscal" da demo: QR, copia-e-cola (caminho
- * acessível), contador de expiração derivado do relógio e status do pedido.
- * Polling e simulação de confirmação chegam nos próximos incrementos.
+ * acessível), contador de expiração derivado do relógio, status ao vivo por
+ * polling curto e o botão que simula a confirmação do sandbox.
  */
 export function Pagamento(): ReactElement {
   const { publicRef = '' } = useParams();

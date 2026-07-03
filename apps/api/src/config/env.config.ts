@@ -4,9 +4,9 @@ import { z } from 'zod';
  * Validação fail-fast do ambiente (Zod), executada no boot: se o ambiente estiver
  * incoerente, o processo nem sobe — melhor falhar no arranque que em produção.
  *
- * Novos segredos/URLs (DATABASE_URL, MP_WEBHOOK_SECRET, DEMO_TOKEN, PAYMENT_PROVIDER)
- * entram aqui conforme as camadas da API forem construídas — nunca lidos cru de
- * `process.env` fora deste ponto.
+ * Novas variáveis (segredos como MP_WEBHOOK_SECRET, URLs como DATABASE_URL, e
+ * valores não-secretos como DEMO_TOKEN/PAYMENT_PROVIDER) entram aqui conforme as
+ * camadas da API forem construídas — nunca lidas cru de `process.env` fora deste ponto.
  */
 const EnvSchema = z
   .object({
