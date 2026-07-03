@@ -16,11 +16,15 @@ export interface PanelOrder {
 }
 
 export interface PanelEvent {
+  // UUID da trilha de auditoria: é o handle que o front usa no replay (rota
+  // /admin, atrás de demo-token + throttle). Sem PII; exposição avaliada em laudo.
+  readonly id: string;
   readonly receivedAt: string;
   readonly source: string;
   readonly verdict: string;
   readonly signatureValid: boolean;
   readonly mpPaymentId: string | null;
+  readonly orderPublicRef: string | null;
   readonly processingMs: number;
 }
 
@@ -46,7 +50,13 @@ export class ReconciliationService {
         take: 50,
         include: { product: true },
       }),
-      this.prisma.webhookEvent.findMany({ orderBy: { receivedAt: 'desc' }, take: 100 }),
+      this.prisma.webhookEvent.findMany({
+        orderBy: { receivedAt: 'desc' },
+        take: 100,
+        // 1 JOIN (não N+1): só o publicRef do pedido relacionado, pro front
+        // vincular evento→pedido sem expor PK interno.
+        include: { relatedOrder: { select: { publicRef: true } } },
+      }),
       this.prisma.webhookEvent.groupBy({
         by: ['relatedOrderId', 'verdict'],
         _count: { _all: true },
@@ -79,11 +89,13 @@ export class ReconciliationService {
         };
       }),
       events: events.map((e) => ({
+        id: e.id,
         receivedAt: e.receivedAt.toISOString(),
         source: e.source,
         verdict: e.verdict,
         signatureValid: e.signatureValid,
         mpPaymentId: e.mpPaymentId,
+        orderPublicRef: e.relatedOrder?.publicRef ?? null,
         processingMs: e.processingMs,
       })),
     };

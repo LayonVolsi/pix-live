@@ -78,4 +78,14 @@ describe.skipIf(!HAS_DB)('ReconciliationService (integração, Postgres real)', 
     expect(view.events.length).toBeGreaterThanOrEqual(2);
     expect(view.events.every((e) => e.signatureValid)).toBe(true);
   });
+
+  it('expõe id do evento e o vínculo com o pedido via publicRef (contrato do front)', async () => {
+    const view = await service.panel();
+    const processed = view.events.find((e) => e.verdict === 'processado');
+    expect(processed).toBeDefined();
+    // id é o handle do replay (rota /admin); orderPublicRef liga evento→pedido
+    // sem expor PK interno.
+    expect(processed?.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(processed?.orderPublicRef).toBe('ref-rec');
+  });
 });
