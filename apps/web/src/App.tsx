@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Link, NavLink, Route, Routes } from 'react-router-dom';
 import { Loja } from './pages/Loja';
 import { Pagamento } from './pages/Pagamento';
+import { Painel } from './pages/Painel';
 
 function EmConstrucao(): ReactElement {
   return (
@@ -45,7 +46,7 @@ export function App(): ReactElement {
         <Routes>
           <Route element={<Loja />} path="/" />
           <Route element={<Pagamento />} path="/pedido/:publicRef" />
-          <Route element={<EmConstrucao />} path="/painel" />
+          <Route element={<Painel />} path="/painel" />
           <Route element={<EmConstrucao />} path="*" />
         </Routes>
       </main>
