@@ -1,0 +1,37 @@
+# Context de build hermético: só fonte + manifests entram; artefato é sempre
+# reconstruído dentro da imagem. Vale para os DOIS Dockerfiles (context = raiz).
+
+# deps e artefatos de build (reconstruídos dentro da imagem)
+node_modules
+**/node_modules
+**/dist
+coverage
+**/coverage
+*.tsbuildinfo
+
+# git / hooks / editor
+.git
+.husky
+.vscode
+.idea
+
+# env — NUNCA em imagem, nem como layer intermediária (defesa em profundidade:
+# o glob já cobre, mas a linha nomeada sobrevive a refatorações do glob)
+.env
+.env.*
+.env.example
+
+# docs e meta — a imagem não precisa de nenhum .md; CLAUDE.md nomeado porque a
+# doutrina do repo é "instruções internas NUNCA em artefato público/registry"
+*.md
+**/*.md
+CLAUDE.md
+docs
+adr
+LICENSE
+
+# testes e tooling de qualidade (rodam no CI, não na imagem)
+**/test
+vitest.config.ts
+eslint.config.mjs
+commitlint.config.cjs
