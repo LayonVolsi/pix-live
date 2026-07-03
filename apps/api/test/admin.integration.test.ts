@@ -82,6 +82,45 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
     expect(adminEvent).not.toBeNull();
   });
 
+  it('replay com provider que esqueceu o pagamento (restart) → duplicata, nunca pagamento_desconhecido', async () => {
+    // O cenário do wow SEMEADO (achado da verificação Docker-on 2026-07-03):
+    // crédito e evento processado existem no BANCO, mas o Map em memória do
+    // mock está VAZIO — o estado de qualquer processo novo da API (restart,
+    // deploy) diante do pedido plantado pelo seed. O ledger do banco vence o
+    // conhecimento transitório do provedor: duplicata, crédito segue 1×.
+    const product = await prisma.product.findFirstOrThrow();
+    const order = await prisma.order.create({
+      data: {
+        publicRef: 'ref-restart',
+        productId: product.id,
+        amountCents: 4700,
+        status: 'paid',
+        mpPaymentId: 'pay-restart-0001',
+        paidAt: new Date(),
+      },
+    });
+    await prisma.orderCredit.create({
+      data: { orderId: order.id, mpPaymentId: 'pay-restart-0001', amountCents: 4700 },
+    });
+    const event = await prisma.webhookEvent.create({
+      data: {
+        source: 'mercadopago',
+        signatureValid: true,
+        verdict: 'processado',
+        mpPaymentId: 'pay-restart-0001',
+        relatedOrderId: order.id,
+        requestIdHeader: 'restart-delivery-1',
+        tsFromSignature: String(Math.floor(Date.now() / 1000)),
+        processingMs: 1,
+        rawBody: '{"type":"payment","data":{"id":"pay-restart-0001"}}',
+      },
+    });
+
+    const replayed = await admin.replay(event.id);
+    expect(replayed.verdict).toBe('duplicata_ignorada');
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: 'pay-restart-0001' } })).toBe(1);
+  });
+
   it('replay de evento não-processado é rejeitado (fail-closed, mesmo limite da UI)', async () => {
     await admin.simulate(publicRef);
     const processed = await prisma.webhookEvent.findFirstOrThrow({
