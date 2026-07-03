@@ -47,7 +47,9 @@ A partir da v1.0.0 este arquivo passa a ser mantido automaticamente por
 - Bloco eslint type-checked + security + `react/no-danger` + `jsx-a11y` +
   `react-hooks` para `apps/web/**/*.{ts,tsx}`; ADR 0005 (pins do front sob
   Node 18 local).
-- Fase container (escrita; verificação com Docker ativo pendente):
+- Fase container (verificada com Docker ativo em 2026-07-03: `compose up`
+  ponta a ponta, XFF forjado não fura o rate-limit, liveness sobrevive a
+  queda do Postgres, hadolint/Trivy limpos, bases pinadas por digest):
   `.dockerignore` hermético; Dockerfile multi-stage da API (non-root, deps
   de produção apenas, `HEALTHCHECK` de liveness pura em `/health/live`,
   CMD exec-form, `NODE_ENV=production` baked com override do compose
@@ -72,3 +74,13 @@ A partir da v1.0.0 este arquivo passa a ser mantido automaticamente por
   não é mais persistido antes do fato (500 sem gravar o delivery-id), então o
   dedupe não é envenenado e a reentrega completa o crédito — achado ALTO da
   revisão adversarial interna, corrigido antes de qualquer cliente ver.
+- Replay do pedido semeado devolvia `pagamento_desconhecido` em vez do
+  bloqueio de idempotência após restart da API (provider mock em memória ×
+  ledger persistente no banco): `creditAlreadyExists` agora precede
+  `orderKnown` no `decideVerdict` — o crédito continua duplo-gateado, só o
+  rótulo de auditoria muda. Achado do "ver rodando" da verificação com
+  Docker; a combinação exata não era coberta por nenhum teste e agora está
+  travada por teste unitário e de integração.
+- Suíte de integração expirava sozinha: fixture com "agora" hardcoded saía
+  da janela anti-replay de 24h (`ts_suspeito` em 3 testes) — relógio real no
+  fixture.
