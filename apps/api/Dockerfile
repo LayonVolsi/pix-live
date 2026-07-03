@@ -40,12 +40,17 @@ RUN pnpm --filter @pix-live/core run build \
   && pnpm --filter @pix-live/api run build
 
 # ── prod: node_modules self-contained SÓ de produção + client Prisma gerado.
-# O segundo generate escreve o client DENTRO de /out: o Prisma resolve o
-# node_modules a partir do --schema (mecanismo verificado no pipeline de
-# desenho). Se a verificação com Docker ligado desmentir: o fallback correto é
-# REGENERAR dentro de /out — nunca cópia flat de .prisma/@prisma, porque a
-# estrutura do pnpm é aninhada em node_modules/.pnpm e cópia flat quebra a
-# resolução de módulos.
+# ATENÇÃO: `pnpm deploy` é recurso oficialmente EXPERIMENTAL do pnpm 9. Na
+# primeira verificação com Docker ligado, o teste nº 1 é
+#   docker build --target prod ... && ls /out/dist/main.js /out/prisma/schema.prisma
+# ANTES de subir o compose: apps/api não declara `files` e o .gitignore da
+# raiz lista dist/ — se o deploy respeitar o ignore, o dist some de /out e o
+# CMD falha com MODULE_NOT_FOUND (derruba a demo E o deploy, que reusam esta
+# imagem). O segundo generate escreve o client DENTRO de /out: o Prisma
+# resolve o node_modules a partir do --schema. Se a verificação desmentir o
+# mecanismo: o fallback correto é REGENERAR dentro de /out — nunca cópia flat
+# de .prisma/@prisma, porque a estrutura do pnpm é aninhada em
+# node_modules/.pnpm e cópia flat quebra a resolução de módulos.
 FROM build AS prod
 RUN pnpm --filter @pix-live/api deploy --prod /out \
   && pnpm --filter @pix-live/api exec prisma generate --schema=/out/prisma/schema.prisma

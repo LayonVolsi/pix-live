@@ -305,11 +305,17 @@ publicação):
 | **Dependabot alerts**                        | Alerta de CVE em dependência (setting de repo — depende da publicação)                                       | CVE novo em dependência já usada                      |
 
 **Endurecimento de borda/runtime — ativo hoje:** **helmet** na API; **body-size cap de 32kb** no
-parser do webhook; **graceful shutdown** (SIGTERM drena requests em voo e fecha o Prisma).
-**_Planejado_:** Dockerfile multi-stage, usuário **non-root**, base pinada por **digest**,
-HEALTHCHECK e signal handling PID1 corretos (entram com o Docker); **CORS restrito** e **request
-timeout** na API (entram com o `apps/web`, quando existir origem real — o timeout exige teste de
-latência contra o pior caso do provedor); **CSP restrita + security headers** (HSTS,
+parser do webhook; **graceful shutdown** (SIGTERM drena requests em voo e fecha o Prisma);
+**container endurecido** — Dockerfile multi-stage, usuário **non-root**, deps de produção apenas,
+`HEALTHCHECK` de **liveness pura** (`/health/live`; readiness alimenta gate de tráfego, nunca
+reciclagem de processo) e signal handling correto (CMD exec-form + `init: true` no compose). No
+compose local, a API **não publica porta no host** e o front sai só em loopback — o nginx é o
+único hop de entrada **externa** (a rede interna do compose é confiada por design, propriedade de
+qualquer topologia `trust proxy = 1`).
+**_Planejado_:** base pinada por **digest** + verificação Trivy/hadolint (fecham como gate na
+verificação com Docker ativo, antes do deploy); **CORS restrito** e **request timeout** na API
+(entram no deploy, quando existir origem pública real — o timeout exige teste de latência contra
+o pior caso do provedor); **CSP restrita + security headers** (HSTS,
 `X-Content-Type-Options: nosniff`, Referrer-Policy, Permissions-Policy, `frame-ancestors`) no
 **host estático** (não herda o helmet da API — o QR em base64 permite CSP sem `img-src` externo).
 

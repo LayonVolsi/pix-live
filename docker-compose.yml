@@ -58,9 +58,11 @@ services:
       # na UI); override único via ambiente do shell (D7).
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-troque-este-segredo-de-dev-1234}
       DEMO_TOKEN: ${DEMO_TOKEN:-demo-nao-secreto}
-    # B2: porta NUNCA publicada no host — o nginx é o ÚNICO hop de entrada.
-    # trust proxy = 1 assume exatamente 1 proxy confiável; publicar 3000
-    # abriria bypass do rate-limit via X-Forwarded-For forjado.
+    # B2: porta NUNCA publicada no host — o nginx é o único hop de entrada
+    # EXTERNA (trust proxy = 1 confia em exatamente 1 salto; publicar 3000
+    # abriria bypass do rate-limit via X-Forwarded-For forjado). Dentro da
+    # bridge do compose outro container ainda alcança api:3000 — rede interna
+    # é confiada por design; não publique nada além do web.
     expose:
       - '3000'
     depends_on:
@@ -78,7 +80,10 @@ services:
         # validado pelo guard nunca dessincronizam (dessincronia = 401 no wow).
         VITE_DEMO_TOKEN: ${DEMO_TOKEN:-demo-nao-secreto}
     ports:
-      - '8080:8080'
+      # Loopback por default: em WSL2/Docker Desktop, publicar sem IP faz bind
+      # em 0.0.0.0 (e mirrored networking pode expor à LAN). Acesso via rede
+      # local é troca consciente do avaliador, não default.
+      - '127.0.0.1:8080:8080'
     depends_on:
       # Q3: o proxy só abre quando a API está saudável (HEALTHCHECK do
       # Dockerfile em /health/live) — elimina a janela de 502 logo após o up.
