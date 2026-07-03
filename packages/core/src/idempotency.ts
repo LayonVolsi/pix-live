@@ -23,15 +23,22 @@ export interface WebhookEvaluation {
 
 /**
  * Decide o veredito. Ordem é intencional e testada:
- * assinatura inválida barra tudo; depois dedupe por request-id; depois pedido
- * desconhecido; depois idempotência de crédito; `ts` fora da janela vira SINAL
- * (não rejeição) quando o HMAC é válido — ver adr/0002.
+ * assinatura inválida barra tudo; depois dedupe por request-id; depois
+ * idempotência de crédito; depois pedido desconhecido; `ts` fora da janela
+ * vira SINAL (não rejeição) quando o HMAC é válido — ver adr/0002.
+ *
+ * Crédito existente PRECEDE pedido desconhecido: o ledger no banco (constraint
+ * única em mp_payment_id) é fato permanente; o conhecimento do provedor é
+ * transitório (mock efêmero pós-restart, provedor que expurgou dado antigo).
+ * Dinheiro já creditado uma vez = duplicata, independente do que o provedor
+ * sabe agora. O rótulo nunca abre crédito novo — o caminho de crédito segue
+ * gateado por verdictResultsInCredit + constraint no banco.
  */
 export function decideVerdict(e: WebhookEvaluation): Verdict {
   if (!e.signatureValid) return 'assinatura_invalida';
   if (e.requestIdAlreadyProcessed) return 'duplicata_ignorada';
-  if (!e.orderKnown) return 'pagamento_desconhecido';
   if (e.creditAlreadyExists) return 'duplicata_ignorada';
+  if (!e.orderKnown) return 'pagamento_desconhecido';
   if (!e.tsWithinWindow) return 'ts_suspeito';
   return 'processado';
 }

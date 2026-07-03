@@ -143,8 +143,10 @@ aceita flag/cabeçalho do cliente que relaxe a camada seguinte.
 - A idempotência é **do banco, não de um `if` em memória** — resiste a corrida entre workers/réplicas,
   que um cache em processo não resistiria.
 - A ordem do veredito é intencional e testada (`packages/core/src/idempotency.ts`):
-  `assinatura_invalida` → `duplicata_ignorada` (request-id) → `pagamento_desconhecido` →
-  `duplicata_ignorada` (crédito já existe) → `ts_suspeito` → `processado`.
+  `assinatura_invalida` → `duplicata_ignorada` (request-id) → `duplicata_ignorada` (crédito já
+  existe — o ledger do banco precede o conhecimento transitório do provedor; sem isso, um replay
+  após restart do provider rotularia a duplicata como `pagamento_desconhecido`) →
+  `pagamento_desconhecido` → `ts_suspeito` → `processado`.
 
 > **Vetor fechado:** a promessa central. Mesmo que Camadas 1 e 2 deixem passar uma reentrega
 > legítima (o caso normal at-least-once), o crédito **nunca** dobra.
