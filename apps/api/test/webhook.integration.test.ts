@@ -63,7 +63,11 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
   let prisma: PrismaService;
   let service: WebhookService;
   let orderId: string;
-  const nowSeconds = Math.floor(new Date('2026-07-02T12:00:00Z').getTime() / 1000);
+  // Relógio REAL, nunca data fixa: o service compara o ts com Date.now() de
+  // verdade, então um "agora" hardcoded vira bomba-relógio — a suíte expira
+  // sozinha quando a data fixa sai da janela anti-replay de 24h (aconteceu:
+  // fixture de 2026-07-02 falhou em 2026-07-03 à noite, ts_suspeito em 3 testes).
+  const nowSeconds = Math.floor(Date.now() / 1000);
   const fakeConfig = {
     get: (key: string): string | undefined => (key === 'MP_WEBHOOK_SECRET' ? SECRET : undefined),
   } as unknown as ConfigService;
