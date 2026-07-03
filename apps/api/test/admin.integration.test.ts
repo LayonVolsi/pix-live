@@ -81,4 +81,20 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
     const adminEvent = await prisma.webhookEvent.findFirst({ where: { source: 'admin_replay' } });
     expect(adminEvent).not.toBeNull();
   });
+
+  it('replay de evento não-processado é rejeitado (fail-closed, mesmo limite da UI)', async () => {
+    await admin.simulate(publicRef);
+    const processed = await prisma.webhookEvent.findFirstOrThrow({
+      where: { verdict: 'processado' },
+    });
+    // Gera uma duplicata e tenta reenviá-la: a API recusa antes do pipeline.
+    await admin.replay(processed.id);
+    const duplicate = await prisma.webhookEvent.findFirstOrThrow({
+      where: { verdict: 'duplicata_ignorada' },
+    });
+    await expect(admin.replay(duplicate.id)).rejects.toThrow(
+      'só eventos processados podem ser reenviados',
+    );
+    expect(await prisma.orderCredit.count()).toBe(1);
+  });
 });

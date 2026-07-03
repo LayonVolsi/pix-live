@@ -55,6 +55,11 @@ export class AdminService {
     if (event?.mpPaymentId == null) {
       throw new NotFoundException('evento de webhook não encontrado');
     }
+    // Fail-closed: a UI só oferece replay em evento processado; a API impõe o
+    // mesmo limite (defesa em profundidade — não confiar no front).
+    if (event.verdict !== 'processado') {
+      throw new BadRequestException('só eventos processados podem ser reenviados');
+    }
     this.logger.log('Reenviando webhook em processo (admin_replay)');
     return this.webhook.process(this.signSelf(event.mpPaymentId, WebhookSource.admin_replay));
   }
