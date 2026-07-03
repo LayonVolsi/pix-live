@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // O base é NodeNext (ESM do Nest, ADR-0004). O browser bundleado pelo Vite
+    // fala outro dialeto: Bundler resolution, imports sem extensão, JSX.
+    // Herda o strict inteiro; sobrescreve só o que é de plataforma (C2).
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["vite/client"]
+  },
+  "include": ["src", "test", "vite.config.ts", "tailwind.config.ts"]
+}

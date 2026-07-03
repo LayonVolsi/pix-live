@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-papel text-tinta antialiased;
+  }
+  body {
+    /* Textura de papel sutil: duas réguas horizontais bem fracas, CSS puro. */
+    background-image: repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 31px,
+      rgb(228 221 210 / 0.35) 31px,
+      rgb(228 221 210 / 0.35) 32px
+    );
+    min-height: 100vh;
+  }
+  /* Números e referências sempre tabulares — identidade de extrato. */
+  code,
+  [data-numeric] {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-pix-escuro;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['packages/**/test/**/*.test.ts', 'apps/**/test/**/*.test.ts'],
+    include: ['packages/**/test/**/*.test.ts', 'apps/**/test/**/*.test.{ts,tsx}'],
     // Os testes de integração compartilham UM Postgres; rodar arquivos em paralelo
     // faria os beforeEach (limpa/cria) se atropelarem (viola FK). Serializa os
     // arquivos — a suíte é pequena, o custo é irrelevante.
