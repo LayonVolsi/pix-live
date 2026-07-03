@@ -208,7 +208,7 @@ O painel de conciliação é **público por design** (é observabilidade de dom�
 ações de **escrita** ("simular confirmação", "reenviar webhook") vivem em rotas **separadas**, nunca
 na rota pública de webhook.
 
-- **Rotas admin dedicadas:** `POST /admin/orders/:id/simulate` e
+- **Rotas admin dedicadas:** `POST /admin/orders/:publicRef/simulate` e
   `POST /admin/webhook-events/:id/replay`.
 - **Demo-token NÃO-secreto** (`DEMO_TOKEN`, ex.: `demo-nao-secreto`). Quando o front existir
   (_planejado_), será pré-anexado por ele e **rotulado na UI** como "token de demonstração pública,

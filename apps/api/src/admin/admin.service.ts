@@ -27,9 +27,12 @@ export class AdminService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
-  /** Simula a confirmação do pagamento (só no mock) e dispara o pipeline assinado. */
-  async simulate(orderId: string): Promise<WebhookOutcome> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+  /**
+   * Simula a confirmação do pagamento (só no mock) e dispara o pipeline assinado.
+   * Lookup por publicRef — o handle público do pedido; o PK interno nunca sai da API.
+   */
+  async simulate(publicRef: string): Promise<WebhookOutcome> {
+    const order = await this.prisma.order.findUnique({ where: { publicRef } });
     if (order?.mpPaymentId == null) {
       throw new NotFoundException('pedido não encontrado ou sem cobrança gerada');
     }

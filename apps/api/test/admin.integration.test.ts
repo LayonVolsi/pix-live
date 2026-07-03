@@ -14,6 +14,7 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
   let mock: MockPaymentProvider;
   let admin: AdminService;
   let orderId: string;
+  let publicRef: string;
   const fakeConfig = {
     get: (key: string): string | undefined => (key === 'MP_WEBHOOK_SECRET' ? SECRET : undefined),
   } as unknown as ConfigService;
@@ -57,10 +58,11 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
       data: { mpPaymentId: charge.providerPaymentId },
     });
     orderId = order.id;
+    publicRef = order.publicRef;
   });
 
   it('simular confirmação credita e marca o pedido como pago', async () => {
-    const out = await admin.simulate(orderId);
+    const out = await admin.simulate(publicRef);
     expect(out.verdict).toBe('processado');
     expect(await prisma.orderCredit.count()).toBe(1);
     const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
@@ -68,7 +70,7 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
   });
 
   it('replay de um evento já processado → duplicata, crédito continua 1× (o wow)', async () => {
-    await admin.simulate(orderId);
+    await admin.simulate(publicRef);
     const processed = await prisma.webhookEvent.findFirstOrThrow({
       where: { verdict: 'processado' },
     });

@@ -15,10 +15,10 @@ import { DemoTokenGuard } from './demo-token.guard.js';
 export class AdminController {
   constructor(private readonly admin: AdminService) {}
 
-  @Post('orders/:id/simulate')
+  @Post('orders/:publicRef/simulate')
   @HttpCode(200)
-  async simulate(@Param('id') id: string): Promise<{ verdict: string }> {
-    const outcome = await this.admin.simulate(id);
+  async simulate(@Param('publicRef') publicRef: string): Promise<{ verdict: string }> {
+    const outcome = await this.admin.simulate(publicRef);
     return { verdict: outcome.verdict };
   }
 
