@@ -52,7 +52,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 
 - Um produto fixo, preço fixo (Kit Caderno Artesanal, **R$ 47,00**), com seed realista.
 - Cobrança Pix via adapter plugável: QR Code (PNG), copia-e-cola (EMV) e expiração — **mock offline hoje**; o adapter do SDK oficial do Mercado Pago em sandbox é a fase 4 (_planejado_; o boot proíbe `PAYMENT_PROVIDER=mercadopago` até lá).
-- Página de pagamento com QR, copiar copia-e-cola, contador de expiração e status que vira **"Pago"** via polling curto (pausado quando a aba perde foco) — _front em construção; o backend que a serve está pronto_.
+- Página de pagamento com QR, copiar copia-e-cola, contador de expiração e status que vira **"Pago"** via polling curto (pausado quando a aba perde foco, encerrado em estado final).
 - Endpoint público de webhook: raw body, HMAC em tempo constante, processamento idempotente e cap de tamanho de corpo; só `application/json` é parseado — corpo em outro formato falha fechado em 401.
 - **Painel de conciliação público** (leitura): pedidos e log de webhooks com veredito, validade de assinatura e latência — **e-mail do pagador mascarado no backend** (nunca só CSS).
 - Um pedido **já pago pré-semeado** para alcançar o wow em <10s direto pelo link.
@@ -90,8 +90,8 @@ O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em proce
 
 ### Hardening de borda
 
-- **API:** helmet + rate limit estratificado por rota (global, webhook, criação de pedido e admin) + validação Zod do **env** (fail-fast no boot); o corpo do webhook é tratado como input hostil, com parsing defensivo e cap de 32kb no parser. CORS restrito e request timeout são _planejados_ — entram com o `apps/web` (origem real conhecida) e com teste de latência contra o pior caso do provedor. Sem chamada HTTP de saída no modo mock (quando o adapter MP entrar, o host é fixo — sem SSRF), sem card data (Pix-only).
-- **Site estático** (_planejado_ — entra com o `apps/web`): NÃO herda o helmet da API — CSP restrita e security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors`) definidos no próprio host. O QR embutido como base64 permite CSP sem `img-src` externo.
+- **API:** helmet + rate limit estratificado por rota (global, webhook, criação de pedido e admin) + validação Zod do **env** (fail-fast no boot); o corpo do webhook é tratado como input hostil, com parsing defensivo e cap de 32kb no parser. Hoje **não há CORS nenhum — fail-closed por design**: o browser só fala com o front, e `/api` é proxy same-origin (Vite em dev, nginx no compose); o CORS restrito por origem real é _planejado_ — entra no deploy, quando a origem pública existir. Request timeout é _planejado_ — entra com teste de latência contra o pior caso do provedor. Sem chamada HTTP de saída no modo mock (quando o adapter MP entrar, o host é fixo — sem SSRF), sem card data (Pix-only).
+- **Site estático** (_planejado_ — fecha na fase deploy, no host estático real): NÃO herda o helmet da API — CSP restrita e security headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors`) definidos no próprio host. O QR embutido como base64 permite CSP sem `img-src` externo. O nginx do compose já traz o baseline local (`server_tokens off`, `nosniff` no estático).
 - **Container:** multi-stage, usuário **non-root**, deps de produção apenas, `.dockerignore` hermético, `HEALTHCHECK` de **liveness pura** (`/health/live`; readiness fica pro gate de tráfego — nunca pra reciclar processo) e signal handling correto (CMD exec-form + graceful shutdown). No compose, a API **não publica porta no host**: o nginx do front é o único hop — casa com `trust proxy = 1` e preserva o rate-limit por IP real. Base pinada por tag exata; **pin por digest + Trivy/hadolint fecham como gate antes do deploy** (_planejado_ — exige Docker ativo).
 - **Supply chain:** `GITHUB_TOKEN` com permissões mínimas por job; actions referenciadas por tag hoje, com **pin por SHA automatizado via Renovate** na primeira PR (`helpers:pinGitHubActionDigests`).
 
@@ -122,7 +122,7 @@ flowchart TD
 
 - **`packages/core`** — domínio **puro** (sem NestJS/Prisma/HTTP): builder do manifesto de assinatura, verificador HMAC em tempo constante, decisor de idempotência, máquina de estados do pedido cobrindo **todas** as transições do MP (`approved`/`rejected`/`cancelled`/`in_process`/`expirado`), formatação de dinheiro em centavos. Fronteira garantida por construção — `packages/core` não tem nenhuma dependência de runtime no `package.json`; a regra de lint que a impõe formalmente é _planejada_.
 - **`apps/api`** — NestJS + Prisma + Postgres, adapter de provedor plugável (MP real vs. mock).
-- **`apps/web`** (_planejado_ — em construção) — React + Vite + TanStack Query (polling curto).
+- **`apps/web`** — React + Vite + Tailwind + TanStack Query: loja, página de pagamento e painel de conciliação ao vivo (polling curto com pausa por Page Visibility); servido por nginx non-root no compose.
 
 Diagrama detalhado e fluxos em **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**.
 
@@ -199,9 +199,9 @@ Pirâmide real, específica deste domínio:
 - **Mutation testing (Stryker)** sobre `packages/core` (_planejado_ — entra no endurecimento do CI) — score-alvo **≥85%**: prova que os testes **matam mutantes**, não só cobrem linhas.
 - **Integração (Supertest + Postgres real):** crédito exatamente-uma-vez sob re-entrega, 401 em assinatura inválida, `ts` fora da janela como sinal (não hard-reject), **corrida de entregas concorrentes**. Roda local contra Postgres real (a suíte pula sem `DATABASE_URL`); job de CI com Postgres service é _planejado_. O caso contra a **fixture REAL do MP sandbox** entra na fase 4 (_planejado_).
 - **Admin isolado:** `/api/v1/admin/*` exige demo-token, respeita rate limit próprio, e o replay nunca passa pela rota pública.
-- **E2E (Playwright + axe-core)** (_planejado_ — entra com o `apps/web`): caminho rápido (pedido pré-semeado) e completo, com checagem de acessibilidade.
+- **E2E (Playwright + axe-core)** (_planejado_ — entra no endurecimento do CI): caminho rápido (pedido pré-semeado) e completo, com checagem de acessibilidade.
 
-**Cobertura imposta no CI:** core ≥90% em linhas/branches/funções/statements (thresholds do vitest reprovam o run). Gate global ≥80% incluindo `apps/` é _planejado_ — entra com o `apps/web`. CI em Node LTS. Branch protection com checks required em `main` é _planejada_ (configuração do GitHub — entra na publicação).
+**Cobertura imposta no CI:** core ≥90% em linhas/branches/funções/statements (thresholds do vitest reprovam o run). Gate global ≥80% incluindo `apps/` é _planejado_ — entra no endurecimento do CI. CI em Node LTS. Branch protection com checks required em `main` é _planejada_ (configuração do GitHub — entra na publicação).
 
 <!-- Print da aba Actions com todos os checks required verdes. -->
 
