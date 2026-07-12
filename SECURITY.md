@@ -1,7 +1,7 @@
 # Política de Segurança — Pix Live
 
 > **English, in one line:** Pix Live is a **sandbox** portfolio demo — it does **not** move real
-> money. To report a security issue, open a [private security advisory](https://github.com/racionalmengo/pix-live/security/advisories/new)
+> money. To report a security issue, open a [private security advisory](https://github.com/LayonVolsi/pix-live/security/advisories/new)
 > or e-mail `security@example.com` (placeholder — replace before publishing). Details below (in PT-BR).
 
 Este documento descreve o **modelo de ameaças** (threat model) do Pix Live e a **política de
@@ -361,7 +361,7 @@ como sinal da própria maturidade do repositório.
 **Como reportar (em ordem de preferência):**
 
 1. **GitHub Security Advisory (privado):** abra um advisory privado em
-   <https://github.com/racionalmengo/pix-live/security/advisories/new>. É o canal preferido — mantém
+   <https://github.com/LayonVolsi/pix-live/security/advisories/new>. É o canal preferido — mantém
    o relato confidencial até a correção.
 2. **E-mail:** `security@example.com` _(placeholder — substituir por um e-mail real antes de tornar o
    repositório público)_.

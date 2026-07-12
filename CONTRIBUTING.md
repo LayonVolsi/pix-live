@@ -53,7 +53,7 @@ ainda não se aplicam — estão documentados aqui porque chegam junto com essas
 ## Setup
 
 ```bash
-git clone https://github.com/racionalmengo/pix-live.git
+git clone https://github.com/LayonVolsi/pix-live.git
 cd pix-live
 pnpm install            # instala deps e, via "prepare", ativa os git hooks (husky)
 cp .env.example .env    # ajuste se for usar o sandbox do MP; o default roda em modo mock

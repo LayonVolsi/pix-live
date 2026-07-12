@@ -6,11 +6,11 @@
 
 <!-- Badges: os de license/último-commit só renderizam após a publicação do repo, e os de CI/deploy/Scorecard só acendem após o primeiro run/deploy. Ver "Estado atual do build". -->
 
-[![CI](https://github.com/racionalmengo/pix-live/actions/workflows/ci.yml/badge.svg)](https://github.com/racionalmengo/pix-live/actions/workflows/ci.yml)
-[![Cobertura](https://img.shields.io/badge/cobertura-core%20%E2%89%A590%25%20imposto%20no%20CI-brightgreen)](https://github.com/racionalmengo/pix-live/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/racionalmengo/pix-live/badge)](https://securityscorecards.dev/viewer/?uri=github.com/racionalmengo/pix-live)
-[![Licença: MIT](https://img.shields.io/github/license/racionalmengo/pix-live)](./LICENSE)
-[![Último commit](https://img.shields.io/github/last-commit/racionalmengo/pix-live)](https://github.com/racionalmengo/pix-live/commits)
+[![CI](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml/badge.svg)](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml)
+[![Cobertura](https://img.shields.io/badge/cobertura-core%20%E2%89%A590%25%20imposto%20no%20CI-brightgreen)](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/LayonVolsi/pix-live/badge)](https://securityscorecards.dev/viewer/?uri=github.com/LayonVolsi/pix-live)
+[![Licença: MIT](https://img.shields.io/github/license/LayonVolsi/pix-live)](./LICENSE)
+[![Último commit](https://img.shields.io/github/last-commit/LayonVolsi/pix-live)](https://github.com/LayonVolsi/pix-live/commits)
 [![Deploy](https://img.shields.io/badge/deploy-placeholder-lightgrey)](#-demo-ao-vivo)
 
 ---
@@ -133,7 +133,7 @@ Diagrama detalhado e fluxos em **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**.
 Modo mock — **100% offline, sem conta no Mercado Pago**:
 
 ```bash
-git clone https://github.com/racionalmengo/pix-live.git
+git clone https://github.com/LayonVolsi/pix-live.git
 cd pix-live
 docker compose up --build   # Postgres + migrations + seed + API + front
 ```
