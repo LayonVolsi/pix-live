@@ -28,6 +28,11 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # apps/api resolve @pix-live/core via exports → dist/ (sem alias); em
+      # checkout limpo o dist não existe e lint (type-aware), typecheck e build
+      # quebram (TS2307). O build completo no fim continua validando api/web —
+      # este passo só garante os artefatos dos pacotes compartilhados antes.
+      - run: pnpm --filter "./packages/*" build
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
@@ -49,6 +54,11 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # vitest resolve @pix-live/core via exports → dist/ (sem alias); em
+      # checkout limpo a COLETA dos testes de apps/api quebra antes mesmo do
+      # skipIf de integração agir. Não "limpar" achando redundante com o job
+      # quality — jobs rodam em runners separados.
+      - run: pnpm --filter "./packages/*" build
       - run: pnpm test:cov
       - name: Upload coverage
         if: matrix.node == 20
