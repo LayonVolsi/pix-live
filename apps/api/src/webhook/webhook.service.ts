@@ -140,6 +140,20 @@ export class WebhookService {
       tsWithinWindow,
     });
 
+    // ── O pagamento que o provedor confirmou é REALMENTE deste pedido?
+    // Até aqui, "aprovado" era palavra do provedor sobre um id — ninguém conferia
+    // se o VALOR e a REFERÊNCIA batem com o pedido que vamos creditar. Com o mock
+    // isso era trivialmente verdade (quem criava a cobrança respondia a consulta);
+    // com o provedor real, esta é a primeira fonte de valor independente. Sem a
+    // conferência, um pagamento de R$ 1 confirmado creditaria um pedido de R$ 47.
+    if (verdictResultsInCredit(verdict) && order !== null && remote !== null) {
+      const mismatch = this.paymentMismatch(order, remote);
+      if (mismatch !== null) {
+        this.logger.error(`pagamento não corresponde ao pedido (${mismatch}) — crédito recusado`);
+        verdict = 'dados_divergentes';
+      }
+    }
+
     // ── Camada 3: crédito idempotente (só quando o veredito credita E há pedido/pagamento).
     if (verdictResultsInCredit(verdict) && order !== null && remote !== null) {
       const applied = await this.applyPayment(order, dataId, remote.status);
@@ -149,6 +163,28 @@ export class WebhookService {
     // ── Auditoria em statement SEPARADO da transação de crédito (sobrevive ao P2002).
     await this.recordEvent(input, source, dataId, ts, verdict, order?.id ?? null, startedAt);
     return { status: httpStatusForVerdict(verdict), verdict };
+  }
+
+  /**
+   * O pagamento confirmado pelo provedor corresponde a ESTE pedido?
+   *
+   * Devolve o motivo da divergência (para o log) ou `null` quando confere.
+   * Fail-closed por construção: qualquer discordância recusa o crédito.
+   *
+   * `externalReference` vazio é tratado como divergência quando o provedor
+   * deveria tê-la preenchido — nós SEMPRE a enviamos na criação da cobrança
+   * (`external_reference: orderId`), então ausência é sinal de que este pagamento
+   * não nasceu deste fluxo.
+   */
+  private paymentMismatch(order: Order, remote: RemotePayment): string | null {
+    if (remote.amountCents !== order.amountCents) {
+      // Nunca loga o valor absoluto junto do id do pedido — só o fato.
+      return 'valor divergente';
+    }
+    if (remote.externalReference !== order.id) {
+      return 'referência externa divergente';
+    }
+    return null;
   }
 
   /**

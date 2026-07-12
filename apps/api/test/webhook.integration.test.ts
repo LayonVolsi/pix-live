@@ -63,6 +63,22 @@ function explodingProvider(): PaymentProvider {
   };
 }
 
+/** Provider que confirma o pagamento, mas com dados que NÃO batem com o pedido. */
+function mismatchedProvider(overrides: Partial<RemotePayment>): PaymentProvider {
+  return {
+    createPixCharge: (): Promise<PixCharge> => {
+      throw new Error('não usado no teste');
+    },
+    getPayment: (): Promise<RemotePayment | null> =>
+      Promise.resolve({
+        status: 'approved',
+        externalReference: 'order-de-outro-fluxo',
+        amountCents: 4700,
+        ...overrides,
+      }),
+  };
+}
+
 /** Monta um input de webhook corretamente assinado (como o MP faria). */
 function signedInput(dataId: string, requestId: string, tsSeconds: number): WebhookInput {
   const ts = String(tsSeconds);
@@ -160,6 +176,52 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
     await expect(service.process(bad)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(await prisma.webhookEvent.count()).toBe(0);
     expect(await prisma.orderCredit.count()).toBe(0);
+  });
+
+  it('VALOR divergente do provedor → NÃO credita (dados_divergentes)', async () => {
+    // O provedor confirma "aprovado", mas de um pagamento de R$ 1,00 — e o pedido
+    // é de R$ 47,00. Sem a conferência, creditaríamos os R$ 47,00 na palavra do
+    // provedor sobre um id. É o buraco que a tese do projeto não pode ter.
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: orderId, amountCents: 100 }),
+    );
+
+    const out = await divergente.process(signedInput(PAYMENT_ID, 'req-div-1', nowSeconds));
+
+    expect(out.verdict).toBe('dados_divergentes');
+    expect(out.status).toBe(200); // ack: divergência é permanente, reentrega não conserta
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: PAYMENT_ID } })).toBe(0);
+    const pedido = await prisma.order.findUnique({ where: { id: orderId } });
+    expect(pedido?.status).toBe('pending'); // não virou pago
+  });
+
+  it('REFERÊNCIA externa de outro pedido → NÃO credita (dados_divergentes)', async () => {
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: 'pedido-de-outra-loja', amountCents: 4700 }),
+    );
+
+    const out = await divergente.process(signedInput(PAYMENT_ID, 'req-div-2', nowSeconds));
+
+    expect(out.verdict).toBe('dados_divergentes');
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: PAYMENT_ID } })).toBe(0);
+  });
+
+  it('a divergência fica na trilha de auditoria (evento gravado, não engolido)', async () => {
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: orderId, amountCents: 1 }),
+    );
+    await divergente.process(signedInput(PAYMENT_ID, 'req-div-3', nowSeconds));
+
+    const evento = await prisma.webhookEvent.findFirst({
+      where: { requestIdHeader: 'req-div-3' },
+    });
+    expect(evento?.verdict).toBe('dados_divergentes');
   });
 
   it('replay de pedido JÁ CREDITADO não consulta o provedor (zero chamada externa)', async () => {

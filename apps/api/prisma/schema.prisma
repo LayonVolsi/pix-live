@@ -34,6 +34,7 @@ enum WebhookVerdict {
   duplicata_ignorada
   assinatura_invalida
   pagamento_desconhecido
+  dados_divergentes
   erro
 
   @@map("webhook_verdict")

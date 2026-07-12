@@ -12,6 +12,13 @@ export type Verdict =
   | 'duplicata_ignorada'
   | 'assinatura_invalida'
   | 'pagamento_desconhecido'
+  /**
+   * O provedor confirma o pagamento, mas ele NÃO corresponde a este pedido:
+   * valor diferente ou referência externa apontando para outro lugar. Não
+   * credita. É ack (200), não erro — divergência é condição permanente, e um
+   * 500 só provocaria tempestade de reentrega para um fato que não vai mudar.
+   */
+  | 'dados_divergentes'
   | 'erro';
 
 /** Estado do pedido. `draft` só existe antes da cobrança ser criada. */
