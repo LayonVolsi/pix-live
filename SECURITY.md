@@ -13,11 +13,19 @@ auditável**.
 
 ## 0. Postura e escopo
 
-- **É uma demo que não move dinheiro real.** Hoje o Pix Live roda em **modo mock 100% offline**
-  (nenhuma chamada de saída); a integração com o **sandbox oficial do Mercado Pago (MP)** é a
-  fase 4 (_planejado_ — o boot proíbe `PAYMENT_PROVIDER=mercadopago` até o adapter existir,
-  `payment.module.ts`). Não há claim de "pronto para produção financeira". O banner permanente na
-  UI declarando isso entra com o front (_planejado_).
+- **É uma demo que não move dinheiro real — e isso é imposto por código, não prometido em prosa.**
+  O adapter do **sandbox oficial do Mercado Pago (MP)** existe
+  (`mercadopago-payment-provider.ts`) e é selecionável por `PAYMENT_PROVIDER=mercadopago`; o
+  **default continua `mock`** (100% offline, nenhuma chamada de saída). O schema de env **recusa a
+  subir** com credencial de produção do MP (exige prefixo `TEST-` — ver §7): "não processa dinheiro
+  real" é um **não-objetivo permanente** (§9), não uma fase. Não há claim de "pronto para produção
+  financeira".
+- **⚠️ Camada 1 no modo real: NÃO VERIFICADA EMPIRICAMENTE.** A verificação de assinatura está
+  implementada de forma correta sob as duas hipóteses de origem do `data.id` (query string ou corpo)
+  e é **fail-closed** quando as duas divergem — mas ainda **não** foi confrontada com uma notificação
+  **real** capturada do sandbox (isso exige uma URL pública). Enquanto essa captura não acontecer,
+  `PAYMENT_PROVIDER=mercadopago` **não é default em lugar nenhum** e esta ressalva permanece aqui,
+  declarada — não omitida. Ver `adr/0006`.
 - **Escopo minúsculo, barra de produção.** O código de domínio (`packages/core`) é puro e
   determinístico, com cobertura **≥90% imposta no CI**. As garantias de segurança abaixo valem
   para o pipeline do webhook, a separação de rotas e a cadeia de suprimentos — o que ainda não
@@ -31,20 +39,24 @@ auditável**.
 
 ## 1. Ativos protegidos
 
-| Ativo                                                                           | Por que importa                                             | Ameaça principal                                         |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
-| **Corretude do crédito do pedido** ("dinheiro não duplica")                     | É a promessa central do produto                             | Entrega duplicada do provedor creditando 2×              |
-| **Autenticidade do webhook**                                                    | Só o MP pode confirmar um pagamento                         | Forjar um webhook e marcar pedido como pago sem pagar    |
-| **Segredo do webhook (`MP_WEBHOOK_SECRET`)** e, na fase 4, o access token do MP | Comprometê-los quebra a Camada 1 e permite agir como a loja | Vazamento em código, log, `.env` ou history              |
-| **PII do pagador (e-mail)**                                                     | LGPD / exposição de dado pessoal a visitante anônimo        | Vazamento no painel público de conciliação               |
-| **Integridade da cadeia de suprimentos**                                        | Dependência ou GitHub Action comprometida injeta código     | Typosquatting, tag mutável sequestrada, action maliciosa |
+| Ativo                                                                                   | Por que importa                                              | Ameaça principal                                               |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
+| **Corretude do crédito do pedido** ("dinheiro não duplica")                             | É a promessa central do produto                              | Entrega duplicada do provedor creditando 2×                    |
+| **Autenticidade do webhook**                                                            | Só o MP pode confirmar um pagamento                          | Forjar um webhook e marcar pedido como pago sem pagar          |
+| **Segredo do webhook (`MP_WEBHOOK_SECRET`) e o access token do MP (`MP_ACCESS_TOKEN`)** | Comprometê-los quebra a Camada 1 e permite agir como a loja  | Vazamento em código, log, `.env` ou history                    |
+| **Quota da conta do operador no provedor** (modo real)                                  | Cada cobrança criada é um objeto real na conta de uma pessoa | Abuso da rota pública de criação gerando milhares de cobranças |
+| **PII do pagador (e-mail)**                                                             | LGPD / exposição de dado pessoal a visitante anônimo         | Vazamento no painel público de conciliação                     |
+| **Integridade da cadeia de suprimentos**                                                | Dependência ou GitHub Action comprometida injeta código      | Typosquatting, tag mutável sequestrada, action maliciosa       |
 
 ---
 
 ## 2. Fronteiras de confiança e atores
 
-> O diagrama descreve a **arquitetura-alvo**. O site estático (React) e o adapter do MP são
-> _planejados_; hoje o provider é o mock offline, sem nenhuma chamada de saída.
+> O diagrama descreve a arquitetura real. O adapter do MP **existe**; no modo `mock` (default) a
+> API não faz **nenhuma** chamada de saída, e a caixa "MP sandbox" fica inerte. No modo
+> `mercadopago`, a seta de saída passa a existir de fato — com host fixo, sem redirect, com timeout
+> e teto de bytes (§7) — e um **ativo novo** entra no modelo: a **quota da conta do operador no
+> provedor**, protegida pelo orçamento de chamadas de saída (§5).
 
 ```
 [ visitante anônimo / avaliador ]
@@ -212,6 +224,27 @@ na rota pública de webhook.
 
 - **Rotas admin dedicadas:** `POST /admin/orders/:publicRef/simulate` e
   `POST /admin/webhook-events/:id/replay`.
+
+### Orçamento de chamadas de saída (modo real)
+
+Um vetor que **só existe quando o provedor é real** e que o rate-limit por IP **não** cobre: a rota
+`POST /orders` é **pública e sem token** (é o botão principal da demo) e, no modo `mercadopago`, cada
+clique **cria uma cobrança de verdade** na conta do operador no MP. O throttler protege o _nosso_
+processo, não a **quota de um terceiro** — e um atacante com IPs rotativos passa por baixo dele.
+
+- **Criar cobrança:** teto de **30/hora + 200/dia** (a janela curta contém a rajada, a longa contém a
+  maratona). Esgotado → **503 com mensagem nossa**. É **proibido degradar para o mock em silêncio**:
+  exibir um QR falso alegando sandbox real seria mentir para o avaliador — pior que a
+  indisponibilidade.
+- **Replay:** teto de **5/min**, consumido **só quando a consulta ao provedor vai realmente
+  acontecer**. O caminho do wow (replay de pedido já creditado) **não consulta o provedor** — o
+  crédito no banco já decide o veredito (invariante `remoteLookupNeeded`, provada por teste exaustivo
+  no `packages/core`).
+- **O webhook genuíno do MP NUNCA é orçado.** É o caminho do dinheiro, e já vem limitado a montante
+  (o provedor só notifica sobre cobranças que nós criamos). Orçá-lo seria auto-DoS.
+- **Risco aceito, documentado:** o orçamento é **in-process** (some no restart, não é compartilhado
+  entre instâncias). Para uma demo de instância única, é o teto certo pelo custo certo; um contador
+  distribuído entraria junto com a necessidade de escalar horizontalmente.
 - **Demo-token NÃO-secreto** (`DEMO_TOKEN`, ex.: `demo-nao-secreto`). Quando o front existir
   (_planejado_), será pré-anexado por ele e **rotulado na UI** como "token de demonstração pública,
   não é credencial real". Ele existe para dar fricção zero ao avaliador **e** para manter uma
@@ -277,8 +310,12 @@ na rota pública de webhook.
   (`refine` do Zod): a aplicação não sobe em produção fingindo provedor.
 - **`trust proxy = 1` (exatamente 1 hop):** o rate limit não é enganável por `X-Forwarded-For`
   forjado — só o proxy imediato é confiável.
-- **Sem SSRF:** a API **não faz nenhuma chamada HTTP de saída no modo mock**; quando o adapter MP
-  entrar (fase 4), o host do provedor será **fixo** — nunca uma URL derivada de input do cliente.
+- **Sem SSRF:** no modo `mock` a API **não faz nenhuma chamada HTTP de saída**. No modo real, o host
+  do provedor é uma **`const` de módulo** (`https://api.mercadopago.com`) — **jamais** de env, config
+  ou input do cliente; redirects **rejeitam** (`redirect: 'error'`, um 3xx nunca nos leva a outro
+  host); há timeout e teto de bytes na resposta; e o id do pagamento passa por um shape-check
+  (`^[0-9]+$`) **antes** de virar path. Foi por isso que o SDK oficial foi rejeitado: ele expõe
+  base-URL configurável — exatamente a superfície que se quer eliminar por construção (`adr/0006`).
 - **Pix-only:** nenhum dado de cartão trafega ou é armazenado — a superfície de PCI simplesmente não
   existe.
 
