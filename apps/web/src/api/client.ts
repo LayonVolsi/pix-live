@@ -50,7 +50,14 @@ function adminPost(path: string): Promise<AdminActionResult> {
   });
 }
 
+/** Modo em que a API está rodando — nunca traz segredo, só a postura. */
+export interface RuntimeConfigView {
+  readonly paymentProvider: 'mock' | 'mercadopago';
+  readonly canSimulatePayment: boolean;
+}
+
 export const api = {
+  config: (): Promise<RuntimeConfigView> => request<RuntimeConfigView>('/config'),
   criarPedido: (): Promise<OrderView> => request<OrderView>('/orders', { method: 'POST' }),
   pedido: (publicRef: string): Promise<OrderView> =>
     request<OrderView>(`/orders/${encodeURIComponent(publicRef)}`),

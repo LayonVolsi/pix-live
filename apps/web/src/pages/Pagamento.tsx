@@ -27,6 +27,12 @@ export function Pagamento(): ReactElement {
   });
 
   const queryClient = useQueryClient();
+  // O modo da API decide se "simular" faz sentido: no sandbox real, ninguém finge
+  // que o pagador pagou — a rota devolve 400. Botão que só falha é pior que botão
+  // ausente, então ele some e o selo do modo aparece no lugar.
+  const config = useQuery({ queryKey: ['config'], queryFn: api.config, staleTime: Infinity });
+  const podeSimular = config.data?.canSimulatePayment ?? true;
+
   const simular = useMutation({
     mutationFn: () => api.simularConfirmacao(publicRef),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', publicRef] }),
@@ -100,7 +106,17 @@ export function Pagamento(): ReactElement {
             ) : null}
           </dl>
 
-          {aguardando && !expirado ? (
+          {aguardando && !expirado && !podeSimular ? (
+            <div className="mt-8 border-t border-dashed border-pauta pt-5">
+              <p className="max-w-prose text-xs text-tinta-fraca">
+                <strong className="font-bold text-tinta">Sandbox real do Mercado Pago.</strong> Não
+                há botão de simular: quem confirma o pagamento é o pagador, no app do banco — e o
+                webhook chega assinado pelo provedor, como em produção.
+              </p>
+            </div>
+          ) : null}
+
+          {aguardando && !expirado && podeSimular ? (
             <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
               {qr !== null ? (
                 <img

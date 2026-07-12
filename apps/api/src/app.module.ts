@@ -12,6 +12,7 @@ import { PaymentModule } from './payment/payment.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
 import { WebhookModule } from './webhook/webhook.module.js';
+import { ConfigController } from './config/config.controller.js';
 import { validateEnv } from './config/env.config.js';
 
 const isDevelopment = process.env['NODE_ENV'] === 'development';
@@ -57,6 +58,7 @@ const isDevelopment = process.env['NODE_ENV'] === 'development';
     OrdersModule,
     ReconciliationModule,
   ],
+  controllers: [ConfigController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
