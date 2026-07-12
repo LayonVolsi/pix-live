@@ -43,6 +43,25 @@ export function decideVerdict(e: WebhookEvaluation): Verdict {
   return 'processado';
 }
 
+/**
+ * A consulta ao provedor é necessária para decidir este evento?
+ *
+ * `decideVerdict` só olha `orderKnown` (o único fato que exige perguntar ao
+ * provedor quem é o pagamento) DEPOIS de assinatura, dedupe e crédito existente.
+ * Quando qualquer um desses três já decide, o veredito é o mesmo com ou sem o
+ * `remote` — logo a chamada externa é pura perda: latência, quota do provedor e,
+ * num deploy público, uma alavanca de abuso (o replay é acionável por qualquer
+ * visitante, por design).
+ *
+ * Esta função existe para que esse acoplamento com a ORDEM interna de
+ * `decideVerdict` seja uma invariante TESTADA, não um comentário que apodrece:
+ * o teste de propriedade exaustivo prova que, sempre que isto devolve `false`,
+ * o veredito independe de `orderKnown`. Reordenar `decideVerdict` fica vermelho.
+ */
+export function remoteLookupNeeded(e: Omit<WebhookEvaluation, 'orderKnown'>): boolean {
+  return e.signatureValid && !e.requestIdAlreadyProcessed && !e.creditAlreadyExists;
+}
+
 /** Um veredito credita o pedido? (o "processado" e o "processado-mas-suspeito"). */
 export function verdictResultsInCredit(v: Verdict): boolean {
   return v === 'processado' || v === 'ts_suspeito';
