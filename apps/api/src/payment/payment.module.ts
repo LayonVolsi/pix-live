@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MercadoPagoPaymentProvider } from './mercadopago-payment-provider.js';
 import { MockPaymentProvider } from './mock-payment-provider.js';
+import { OutboundBudgetService } from './outbound-budget.service.js';
 import { PAYMENT_PROVIDER } from './payment-provider.port.js';
 import type { PaymentProvider } from './payment-provider.port.js';
 
@@ -16,6 +17,7 @@ import type { PaymentProvider } from './payment-provider.port.js';
  */
 @Module({
   providers: [
+    OutboundBudgetService,
     {
       provide: PAYMENT_PROVIDER,
       inject: [ConfigService],
@@ -33,6 +35,6 @@ import type { PaymentProvider } from './payment-provider.port.js';
       },
     },
   ],
-  exports: [PAYMENT_PROVIDER],
+  exports: [PAYMENT_PROVIDER, OutboundBudgetService],
 })
 export class PaymentModule {}

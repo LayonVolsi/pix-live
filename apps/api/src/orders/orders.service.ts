@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Order } from '@prisma/client';
 import { formatBRL } from '@pix-live/core';
+import { CREATE_CHARGE_BUDGET, OutboundBudgetService } from '../payment/outbound-budget.service.js';
 import { PAYMENT_PROVIDER } from '../payment/payment-provider.port.js';
 import type { PaymentProvider } from '../payment/payment-provider.port.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -26,10 +28,27 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    private readonly budget: OutboundBudgetService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Cria o pedido do produto fixo e gera a cobrança Pix no provedor. */
   async create(): Promise<OrderView> {
+    // Esta rota é PÚBLICA e sem token — é o botão principal da demo. No modo real,
+    // cada clique CRIA uma cobrança de verdade na conta do operador no provedor.
+    // O throttler por IP protege o nosso processo, não a quota de terceiro (e um
+    // atacante com IPs rotativos passa por baixo dele). O orçamento é o teto de
+    // quanto esta demo pode gastar na conta de outra pessoa.
+    //
+    // Fail-closed e HONESTO: quando acaba, a demo diz que acabou. Cair para o mock
+    // em silêncio mostraria um QR falso alegando sandbox real — mentira para o
+    // avaliador, que é pior que a indisponibilidade.
+    if (this.isRealProvider() && !this.budget.consume('create_charge', CREATE_CHARGE_BUDGET)) {
+      throw new ServiceUnavailableException(
+        'demonstração temporariamente indisponível — limite de cobranças de sandbox atingido',
+      );
+    }
+
     const product = await this.prisma.product.findFirst({ where: { active: true } });
     if (product === null) {
       throw new NotFoundException('nenhum produto ativo configurado');
@@ -98,5 +117,10 @@ export class OrdersService {
       qrPngBase64: order.qrPngBase64,
       pixExpiresAt: order.pixExpiresAt?.toISOString() ?? null,
     };
+  }
+
+  /** O orçamento só faz sentido quando as chamadas custam algo a alguém. */
+  private isRealProvider(): boolean {
+    return this.config.get<string>('PAYMENT_PROVIDER') === 'mercadopago';
   }
 }

@@ -1,11 +1,18 @@
 import { NotFoundException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MockPaymentProvider } from '../src/payment/mock-payment-provider.js';
+import { OutboundBudgetService } from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { OrdersService } from '../src/orders/orders.service.js';
 
 const HAS_DB =
   typeof process.env['DATABASE_URL'] === 'string' && process.env['DATABASE_URL'] !== '';
+
+/** Modo mock: o orçamento de saída não se aplica (nada custa a ninguém). */
+const fakeConfig = {
+  get: (key: string): string | undefined => (key === 'PAYMENT_PROVIDER' ? 'mock' : undefined),
+} as unknown as ConfigService;
 
 describe.skipIf(!HAS_DB)('OrdersService (integração, Postgres real)', () => {
   let prisma: PrismaService;
@@ -29,7 +36,12 @@ describe.skipIf(!HAS_DB)('OrdersService (integração, Postgres real)', () => {
     await prisma.product.create({
       data: { slug: 'kit', name: 'Kit Caderno Artesanal', description: 'demo', amountCents: 4700 },
     });
-    orders = new OrdersService(prisma, new MockPaymentProvider());
+    orders = new OrdersService(
+      prisma,
+      new MockPaymentProvider(),
+      new OutboundBudgetService(),
+      fakeConfig,
+    );
   });
 
   it('cria pedido pendente com QR e valor formatado', async () => {

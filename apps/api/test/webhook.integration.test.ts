@@ -2,6 +2,7 @@ import { InternalServerErrorException, UnauthorizedException } from '@nestjs/com
 import type { ConfigService } from '@nestjs/config';
 import { buildSignatureManifest, computeSignature } from '@pix-live/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { OutboundBudgetService } from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { WebhookService } from '../src/webhook/webhook.service.js';
 import type { WebhookInput } from '../src/webhook/webhook.service.js';
@@ -134,7 +135,12 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
       },
     });
     orderId = order.id;
-    service = new WebhookService(prisma, fakeConfig, stubProvider(orderId, 4700));
+    service = new WebhookService(
+      prisma,
+      fakeConfig,
+      stubProvider(orderId, 4700),
+      new OutboundBudgetService(),
+    );
   });
 
   it('caminho feliz: credita 1× e marca o pedido como pago', async () => {
@@ -186,6 +192,7 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
       prisma,
       fakeConfig,
       mismatchedProvider({ externalReference: orderId, amountCents: 100 }),
+      new OutboundBudgetService(),
     );
 
     const out = await divergente.process(signedInput(PAYMENT_ID, 'req-div-1', nowSeconds));
@@ -202,6 +209,7 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
       prisma,
       fakeConfig,
       mismatchedProvider({ externalReference: 'pedido-de-outra-loja', amountCents: 4700 }),
+      new OutboundBudgetService(),
     );
 
     const out = await divergente.process(signedInput(PAYMENT_ID, 'req-div-2', nowSeconds));
@@ -215,6 +223,7 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
       prisma,
       fakeConfig,
       mismatchedProvider({ externalReference: orderId, amountCents: 1 }),
+      new OutboundBudgetService(),
     );
     await divergente.process(signedInput(PAYMENT_ID, 'req-div-3', nowSeconds));
 
@@ -231,7 +240,12 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
 
     // Agora, um provider que explode se for tocado: o crédito já existe no banco,
     // logo o veredito não depende do provedor — a Camada 3 decide sozinha.
-    const semRede = new WebhookService(prisma, fakeConfig, explodingProvider());
+    const semRede = new WebhookService(
+      prisma,
+      fakeConfig,
+      explodingProvider(),
+      new OutboundBudgetService(),
+    );
     const replay = await semRede.process(signedInput(PAYMENT_ID, 'req-lazy-2', nowSeconds));
 
     expect(replay.verdict).toBe('duplicata_ignorada');
@@ -241,14 +255,24 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
   it('reentrega com request-id já visto não consulta o provedor (dedupe da Camada 2)', async () => {
     await service.process(signedInput(PAYMENT_ID, 'req-lazy-3', nowSeconds));
 
-    const semRede = new WebhookService(prisma, fakeConfig, explodingProvider());
+    const semRede = new WebhookService(
+      prisma,
+      fakeConfig,
+      explodingProvider(),
+      new OutboundBudgetService(),
+    );
     const reentrega = await semRede.process(signedInput(PAYMENT_ID, 'req-lazy-3', nowSeconds));
 
     expect(reentrega.verdict).toBe('duplicata_ignorada');
   });
 
   it('falha transitória de getPayment → 500; reentrega com MESMO request-id credita (finding 1)', async () => {
-    const flaky = new WebhookService(prisma, fakeConfig, flakyProvider(orderId, 4700, 1));
+    const flaky = new WebhookService(
+      prisma,
+      fakeConfig,
+      flakyProvider(orderId, 4700, 1),
+      new OutboundBudgetService(),
+    );
     // 1ª entrega: getPayment falha → 500, e NADA é persistido (senão envenenaria o dedupe).
     await expect(
       flaky.process(signedInput(PAYMENT_ID, 'req-retry', nowSeconds)),

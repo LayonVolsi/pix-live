@@ -1,5 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import {
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -19,6 +21,7 @@ import {
   verifySignature,
 } from '@pix-live/core';
 import type { MpPaymentStatus, Verdict } from '@pix-live/core';
+import { OutboundBudgetService, REPLAY_LOOKUP_BUDGET } from '../payment/outbound-budget.service.js';
 import { PAYMENT_PROVIDER } from '../payment/payment-provider.port.js';
 import type { PaymentProvider, RemotePayment } from '../payment/payment-provider.port.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -53,6 +56,7 @@ export class WebhookService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    private readonly budget: OutboundBudgetService,
   ) {}
 
   async process(input: WebhookInput): Promise<WebhookOutcome> {
@@ -117,6 +121,22 @@ export class WebhookService {
         tsWithinWindow,
       })
     ) {
+      // O webhook GENUÍNO do MP nunca é orçado (é o caminho do dinheiro, e já vem
+      // limitado a montante: o MP só notifica sobre cobranças que nós criamos).
+      // O REPLAY é outra história: é acionável por qualquer visitante (o demo-token
+      // é público por design) e, quando o evento não tem crédito — pagamento
+      // rejeitado, por exemplo —, chega até aqui e consulta o provedor de verdade.
+      if (
+        source === WebhookSource.admin_replay &&
+        this.isRealProvider() &&
+        !this.budget.consume('replay_lookup', REPLAY_LOOKUP_BUDGET)
+      ) {
+        throw new HttpException(
+          'limite de consultas ao provedor atingido — tente em instantes',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
       try {
         remote = await this.provider.getPayment(dataId);
       } catch (error) {
@@ -163,6 +183,11 @@ export class WebhookService {
     // ── Auditoria em statement SEPARADO da transação de crédito (sobrevive ao P2002).
     await this.recordEvent(input, source, dataId, ts, verdict, order?.id ?? null, startedAt);
     return { status: httpStatusForVerdict(verdict), verdict };
+  }
+
+  /** O orçamento de saída só faz sentido quando a chamada custa algo a alguém. */
+  private isRealProvider(): boolean {
+    return this.config.get<string>('PAYMENT_PROVIDER') === 'mercadopago';
   }
 
   /**
