@@ -10,10 +10,17 @@ import { Pagamento } from '../src/pages/Pagamento';
 
 const pedidoMock = vi.hoisted(() => vi.fn());
 const simularMock = vi.hoisted(() => vi.fn());
+const configMock = vi.hoisted(() => vi.fn());
 vi.mock('../src/api/client', () => ({
-  api: { pedido: pedidoMock, simularConfirmacao: simularMock },
+  api: { pedido: pedidoMock, simularConfirmacao: simularMock, config: configMock },
   ApiError: class extends Error {},
 }));
+
+// Modo mock em todos os casos: é onde o botão "simular" faz sentido. No sandbox
+// real ele some (botão que só falha é pior que botão ausente) — ver ConfigController.
+beforeEach(() => {
+  configMock.mockResolvedValue({ paymentProvider: 'mock', canSimulatePayment: true });
+});
 
 function baseOrder(overrides: Partial<OrderView>): OrderView {
   return {

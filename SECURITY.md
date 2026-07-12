@@ -389,6 +389,12 @@ Para não haver overclaim, estes vetores estão **conscientemente fora** do mode
   ele aparece na página pública de pagamento em modo mock. Risco aceito: o mock é **proibido em
   produção** pelo gate de env (Zod), o id não destrava nenhuma ação (as rotas admin usam
   `publicRef`/id de evento), e o formato sintético deixa óbvio que não é um EMV real.
+- **Janela de cobrança órfã no modo real** — se o processo cair entre a criação da cobrança no
+  provedor e a gravação do `mpPaymentId` no banco, fica uma cobrança no MP sem pedido
+  correspondente. O cliente também não recebe QR nenhum nessa falha (a resposta HTTP falha junto),
+  então não há dinheiro em risco — mas não há reconciliação que expire essas órfãs. Risco aceito de
+  demo; num sistema de verdade, entraria um job de reconciliação. Achado da re-verificação do
+  `auditor-codigo` (2026-07-12).
 - **Não processa dinheiro real** — é sandbox; não há defesa de fundos reais a se fazer.
 - **Não é uma biblioteca de pagamentos reutilizável** — é uma demonstração focada de UMA integração.
 - **Sem defesa contra ataque de disponibilidade em escala** (DDoS volumétrico) além do rate limit —

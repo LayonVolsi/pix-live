@@ -1,8 +1,12 @@
 import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import { WebhookSource } from '@prisma/client';
 import { buildSignatureManifest, computeSignature } from '@pix-live/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { OutboundBudgetService } from '../src/payment/outbound-budget.service.js';
+import {
+  OutboundBudgetService,
+  REPLAY_LOOKUP_BUDGET,
+} from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { WebhookService } from '../src/webhook/webhook.service.js';
 import type { WebhookInput } from '../src/webhook/webhook.service.js';
@@ -231,6 +235,38 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
       where: { requestIdHeader: 'req-div-3' },
     });
     expect(evento?.verdict).toBe('dados_divergentes');
+  });
+
+  it('orçamento de saída barra o replay em modo real, mas NUNCA o webhook genuíno', async () => {
+    // Config em modo real: o orçamento passa a valer.
+    const configReal = {
+      get: (key: string): string | undefined => {
+        if (key === 'MP_WEBHOOK_SECRET') return SECRET;
+        if (key === 'PAYMENT_PROVIDER') return 'mercadopago';
+        return undefined;
+      },
+    } as unknown as ConfigService;
+
+    const budget = new OutboundBudgetService();
+    const svc = new WebhookService(prisma, configReal, stubProvider(orderId, 4700), budget);
+
+    // Esgota o orçamento de replay (5/min).
+    for (let i = 0; i < 5; i += 1) {
+      budget.consume('replay_lookup', REPLAY_LOOKUP_BUDGET);
+    }
+
+    // Replay (source=admin_replay) com o orçamento zerado → 429, sem tocar o provedor.
+    await expect(
+      svc.process({
+        ...signedInput('pay-nao-creditado', 'req-budget-1', nowSeconds),
+        source: WebhookSource.admin_replay,
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+
+    // O webhook GENUÍNO do MP passa mesmo com o orçamento de replay zerado —
+    // orçá-lo seria auto-DoS: é o caminho do dinheiro.
+    const genuino = await svc.process(signedInput(PAYMENT_ID, 'req-budget-2', nowSeconds));
+    expect(genuino.verdict).toBe('processado');
   });
 
   it('replay de pedido JÁ CREDITADO não consulta o provedor (zero chamada externa)', async () => {

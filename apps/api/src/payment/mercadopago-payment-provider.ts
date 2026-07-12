@@ -166,7 +166,11 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
     return {
       status: mapMpStatus(payment.status, this.logger),
       externalReference: payment.external_reference ?? '',
-      amountCents: reaisToCents(payment.transaction_amount),
+      // Um valor que a conversão recusa (precisão sub-centavo) é RESPOSTA
+      // MALFORMADA, não falha de rede. Sem reclassificar, o erro subiria cru e o
+      // webhook o registraria como 'rede/infra' — o MP reentregaria para sempre um
+      // fato determinístico, e o log apontaria para a causa errada.
+      amountCents: this.toCents(payment.transaction_amount),
     };
   }
 
@@ -237,6 +241,18 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
       throw new PaymentProviderError('invalid_response');
     }
     return parsed.data;
+  }
+
+  /** Converte o valor do provedor, reclassificando ambiguidade como resposta inválida. */
+  private toCents(transactionAmount: number): number {
+    try {
+      return reaisToCents(transactionAmount);
+    } catch (error) {
+      this.logger.error(
+        `valor do provedor não converte em centavos exatos (${error instanceof Error ? error.name : 'erro'})`,
+      );
+      throw new PaymentProviderError('invalid_response');
+    }
   }
 
   /** Lê o corpo contando bytes: `content-length` é dica, não garantia. */

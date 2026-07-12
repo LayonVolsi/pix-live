@@ -31,7 +31,10 @@ export function Pagamento(): ReactElement {
   // que o pagador pagou — a rota devolve 400. Botão que só falha é pior que botão
   // ausente, então ele some e o selo do modo aparece no lugar.
   const config = useQuery({ queryKey: ['config'], queryFn: api.config, staleTime: Infinity });
-  const podeSimular = config.data?.canSimulatePayment ?? true;
+  // Default FECHADO: enquanto o modo não é conhecido (ou se /config falhar), o
+  // botão não aparece. Mostrar e depois esconder seria pior — e um botão que só
+  // falha é exatamente o que este controle existe para evitar.
+  const podeSimular = config.data?.canSimulatePayment ?? false;
 
   const simular = useMutation({
     mutationFn: () => api.simularConfirmacao(publicRef),

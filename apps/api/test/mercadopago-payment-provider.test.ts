@@ -177,6 +177,16 @@ describe('MercadoPagoPaymentProvider — getPayment (a linha onde o dinheiro se 
     expect(remote?.externalReference).toBe('order-uuid-1');
   });
 
+  it('valor sub-centavo do provedor vira invalid_response, NÃO erro de rede', async () => {
+    // Diagnóstico importa: se subisse como erro de rede, o webhook registraria
+    // 'rede/infra' e o MP reentregaria PARA SEMPRE um fato determinístico — com o
+    // log apontando para a causa errada.
+    const ambiguo = { ...PAYMENT_OK, transaction_amount: 10.001 };
+    const provider = providerWith(vi.fn().mockResolvedValue(jsonResponse(ambiguo)) as never);
+
+    await expect(provider.getPayment('123')).rejects.toMatchObject({ reason: 'invalid_response' });
+  });
+
   it('o erro NUNCA carrega o corpo da resposta do provedor', async () => {
     const corpoSensivel = JSON.stringify({ message: 'segredo-do-mp', payer_email: 'a@b.com' });
     const provider = providerWith(
