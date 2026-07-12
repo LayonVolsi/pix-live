@@ -14,6 +14,7 @@ import {
   httpStatusForVerdict,
   isTimestampWithinWindow,
   nextOrderStatus,
+  remoteLookupNeeded,
   verdictResultsInCredit,
   verifySignature,
 } from '@pix-live/core';
@@ -84,23 +85,8 @@ export class WebhookService {
     const source = input.source ?? WebhookSource.mercadopago;
     const { dataId } = input;
 
-    // ── Consulta AUTENTICADA ao provedor (status/valor confiáveis, não o corpo).
-    let remote: RemotePayment | null = null;
-    try {
-      remote = await this.provider.getPayment(dataId);
-    } catch (error) {
-      // Erro transitório de rede/infra ≠ "não existe": devolve 500 para o MP
-      // reentregar. NÃO persiste evento aqui — uma linha `erro` chaveada por
-      // request-id envenenaria o dedupe (a reentrega cairia em duplicata_ignorada
-      // e o pagamento aprovado nunca seria creditado). Ver review, finding 1 (ALTO).
-      this.logger.error(
-        'getPayment falhou (rede/infra) — 500 para reentrega, sem persistir evento',
-        error instanceof Error ? error.stack : String(error),
-      );
-      throw new InternalServerErrorException();
-    }
-
-    // ── Fatos do banco (o core decide; a rota só apura).
+    // ── Fatos do banco PRIMEIRO (o core decide; a rota só apura). A ordem importa:
+    // eles determinam se a consulta ao provedor é sequer necessária (ver abaixo).
     const order = await this.prisma.order.findUnique({ where: { mpPaymentId: dataId } });
     // Dedupe da Camada 2 por request-id. Se o header vier ausente (atípico do MP),
     // o dedupe não se aplica — mas o dinheiro CONTINUA protegido pela Camada 3
@@ -115,6 +101,36 @@ export class WebhookService {
     const creditAlreadyExists =
       (await this.prisma.orderCredit.findUnique({ where: { mpPaymentId: dataId } })) !== null;
     const tsWithinWindow = ts !== null && isTimestampWithinWindow(Number(ts), Date.now());
+
+    // ── Consulta AUTENTICADA ao provedor (status/valor confiáveis, nunca o corpo),
+    // feita SÓ quando muda o veredito — `remoteLookupNeeded` é a invariante que
+    // prova isso contra a ordem de `decideVerdict` (teste exaustivo no core).
+    // Com o provedor real, cada consulta é uma chamada autenticada de saída: o
+    // replay de um pedido já creditado (o caminho do wow, acionável por qualquer
+    // visitante) passa a custar ZERO chamada externa.
+    let remote: RemotePayment | null = null;
+    if (
+      remoteLookupNeeded({
+        signatureValid: true,
+        requestIdAlreadyProcessed,
+        creditAlreadyExists,
+        tsWithinWindow,
+      })
+    ) {
+      try {
+        remote = await this.provider.getPayment(dataId);
+      } catch (error) {
+        // Erro transitório de rede/infra ≠ "não existe": devolve 500 para o MP
+        // reentregar. NÃO persiste evento aqui — uma linha `erro` chaveada por
+        // request-id envenenaria o dedupe (a reentrega cairia em duplicata_ignorada
+        // e o pagamento aprovado nunca seria creditado). Ver review, finding 1 (ALTO).
+        this.logger.error(
+          'getPayment falhou (rede/infra) — 500 para reentrega, sem persistir evento',
+          error instanceof Error ? error.stack : String(error),
+        );
+        throw new InternalServerErrorException();
+      }
+    }
 
     let verdict: Verdict = decideVerdict({
       signatureValid: true,

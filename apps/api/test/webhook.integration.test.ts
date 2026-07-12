@@ -47,6 +47,22 @@ function flakyProvider(orderId: string, amountCents: number, failTimes: number):
   };
 }
 
+/**
+ * Provider que EXPLODE se `getPayment` for invocado. Prova, por construção, que
+ * o caminho não faz nenhuma chamada externa — com o provedor real, cada chamada
+ * é uma requisição autenticada de saída (quota/custo/abuso).
+ */
+function explodingProvider(): PaymentProvider {
+  return {
+    createPixCharge: (): Promise<PixCharge> => {
+      throw new Error('não usado no teste');
+    },
+    getPayment: (): Promise<RemotePayment | null> => {
+      throw new Error('getPayment NÃO deveria ter sido chamado');
+    },
+  };
+}
+
 /** Monta um input de webhook corretamente assinado (como o MP faria). */
 function signedInput(dataId: string, requestId: string, tsSeconds: number): WebhookInput {
   const ts = String(tsSeconds);
@@ -144,6 +160,29 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
     await expect(service.process(bad)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(await prisma.webhookEvent.count()).toBe(0);
     expect(await prisma.orderCredit.count()).toBe(0);
+  });
+
+  it('replay de pedido JÁ CREDITADO não consulta o provedor (zero chamada externa)', async () => {
+    // Credita de verdade (com o stub normal).
+    const primeira = await service.process(signedInput(PAYMENT_ID, 'req-lazy-1', nowSeconds));
+    expect(primeira.verdict).toBe('processado');
+
+    // Agora, um provider que explode se for tocado: o crédito já existe no banco,
+    // logo o veredito não depende do provedor — a Camada 3 decide sozinha.
+    const semRede = new WebhookService(prisma, fakeConfig, explodingProvider());
+    const replay = await semRede.process(signedInput(PAYMENT_ID, 'req-lazy-2', nowSeconds));
+
+    expect(replay.verdict).toBe('duplicata_ignorada');
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: PAYMENT_ID } })).toBe(1);
+  });
+
+  it('reentrega com request-id já visto não consulta o provedor (dedupe da Camada 2)', async () => {
+    await service.process(signedInput(PAYMENT_ID, 'req-lazy-3', nowSeconds));
+
+    const semRede = new WebhookService(prisma, fakeConfig, explodingProvider());
+    const reentrega = await semRede.process(signedInput(PAYMENT_ID, 'req-lazy-3', nowSeconds));
+
+    expect(reentrega.verdict).toBe('duplicata_ignorada');
   });
 
   it('falha transitória de getPayment → 500; reentrega com MESMO request-id credita (finding 1)', async () => {
