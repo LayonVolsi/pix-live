@@ -349,6 +349,12 @@ Para não haver overclaim, estes vetores estão **conscientemente fora** do mode
 - **Não é uma biblioteca de pagamentos reutilizável** — é uma demonstração focada de UMA integração.
 - **Sem defesa contra ataque de disponibilidade em escala** (DDoS volumétrico) além do rate limit —
   fora do escopo de uma demo de portfólio.
+- **GHSA-36xv-jgw5-4q75 (`@nestjs/core` ≤10.x, injeção via SSE) sem patch na linha 10** — o fix
+  existe só no Nest 11, e este projeto pina Nest 10 por decisão documentada (`adr/0004`, Node 18
+  local). Risco aceito com superfície zero verificada: a aplicação **não usa `@Sse()` em nenhuma
+  rota** (o código vulnerável, `SseStream`, nunca é alcançado). Reavaliar na migração Node 20+/
+  Nest 11 (item B7 do backlog); se SSE for adotado antes disso, sanitizar `type`/`id` (CR/LF)
+  antes de repassar ao Nest.
 
 ---
 
