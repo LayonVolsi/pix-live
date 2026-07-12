@@ -84,3 +84,14 @@ A partir da v1.0.0 este arquivo passa a ser mantido automaticamente por
 - Suíte de integração expirava sozinha: fixture com "agora" hardcoded saía
   da janela anti-replay de 24h (`ts_suspeito` em 3 testes) — relógio real no
   fixture.
+- CI quebrava em qualquer checkout limpo (latente até aqui — nunca tinha
+  rodado num runner de verdade): `@pix-live/core` resolve via `exports` →
+  `dist/` que não existe pós-checkout (coleta dos testes de integração
+  falhava antes do `skipIf`; lint type-aware e typecheck do `apps/api` caíam
+  em TS2307), e o client Prisma nunca era gerado em install limpo de
+  monorepo pnpm (stubs sem modelos → TS2305 e `no-unsafe-*` no quality; no
+  test, o import estático de `PrismaClient` quebrava a coleta). Os dois
+  jobs agora geram o client e buildam `packages/*` antes dos passos que os
+  consomem. Provado com a sequência exata de cada job em clones isolados —
+  um clone por job, como runners de verdade (a revisão adversarial pegou a
+  1ª prova reaproveitando `node_modules` entre os jobs).
