@@ -11,5 +11,5 @@ labels: enhancement
 
 ## Está no escopo?
 
-<!-- Esta isca é deliberadamente pequena (ver "Escopo FORA" no README).
+<!-- Este projeto é deliberadamente pequeno (ver "Escopo FORA" no README).
      Explique por que a sugestão cabe no escopo de demonstração. -->

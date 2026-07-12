@@ -19,7 +19,7 @@
 
 > **`<DEMO_URL>`** — _placeholder: o link ainda não existe. Será fixado aqui apontando de preferência ao **painel de conciliação** (caminho de wow em menos de 10s)._
 
-> ⚠️ **Demo sandbox — não processa dinheiro real.** Toda cobrança é gerada no ambiente de testes do Mercado Pago. Nenhum valor real transita, nenhum Pix real é cobrado. Isto é uma isca de portfólio, não um produto financeiro em produção.
+> ⚠️ **Demo sandbox — não processa dinheiro real.** Toda cobrança é gerada no ambiente de testes do Mercado Pago. Nenhum valor real transita, nenhum Pix real é cobrado. Isto é um projeto de portfólio, não um produto financeiro em produção.
 
 ### O wow em 10 segundos
 
@@ -264,10 +264,10 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 ## 📄 Licença & mais
 
 - **Licença:** [MIT](./LICENSE) · **Versionamento:** SemVer (primeira release pública `v1.0.0`; CHANGELOG manual até lá, automatizado por release-please a partir dela).
-- **Perfil / hub:** `<HUB_URL>` _(placeholder do link do hub com as demais iscas)_.
-- **Outras iscas públicas:** `<ISCAS_URL>` _(placeholder)_.
+- **Perfil / hub:** `<HUB_URL>` _(placeholder do link do hub com os demais projetos)_.
+- **Outros projetos públicos:** `<PORTFOLIO_URL>` _(placeholder)_.
 
-> Esta é uma das iscas públicas de portfólio de um dev full-stack BR que entrega **produto completo com segurança por padrão**. O código de negócio real fica fechado — discrição profissional, não desculpa; esta isca de escopo minúsculo mostra a **barra de execução** em código aberto.
+> Este é um dos projetos públicos de portfólio de um dev full-stack BR que entrega **produto completo com segurança por padrão**. O código de negócio real fica fechado — discrição profissional, não desculpa; este projeto de escopo minúsculo mostra a **barra de execução** em código aberto.
 
 ---
 

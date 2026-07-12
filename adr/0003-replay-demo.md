@@ -2,7 +2,7 @@
 
 - **Status:** aceito
 - **Data:** 2026-07-02
-- **Contexto:** o wow da isca é reenviar o mesmo webhook e ver a idempotência
+- **Contexto:** o wow do projeto é reenviar o mesmo webhook e ver a idempotência
   bloquear a segunda entrega. Em produção esse botão **não existiria** — a Camada 2
   rejeitaria a reentrega pelo dedupe de delivery-id, e ações administrativas seriam
   autenticadas de verdade. A demo precisa da affordance sem abrir um vetor real.
