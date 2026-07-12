@@ -3,7 +3,7 @@
 - **Status:** aceito
 - **Data:** 2026-07-02
 - **Contexto:** o ambiente de desenvolvimento local roda Node 18; o CI roda as LTS
-  ativas (20 e 22). A isca precisa buildar e testar igual nos dois mundos, e provar
+  ativas (20 e 22). O projeto precisa buildar e testar igual nos dois mundos, e provar
   engenharia de backend sem acoplar o domínio ao framework nem à conta de um
   provedor de pagamento.
 

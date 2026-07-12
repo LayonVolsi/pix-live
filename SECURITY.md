@@ -5,7 +5,7 @@
 > — it is the only reporting channel. Details below (in PT-BR).
 
 Este documento descreve o **modelo de ameaças** (threat model) do Pix Live e a **política de
-divulgação responsável** (responsible disclosure). Ele é parte da prova de engenharia da isca: o
+divulgação responsável** (responsible disclosure). Ele é parte da prova de engenharia do projeto: o
 objetivo não é só o código estar seguro, mas o raciocínio de segurança estar **explícito e
 auditável**.
 

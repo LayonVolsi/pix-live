@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { formatBRL } from '../src/money.js';
 
 describe('formatBRL', () => {
-  it('formata valor do produto da isca', () => {
+  it('formata valor do produto do projeto', () => {
     expect(formatBRL(4700)).toBe('R$ 47,00');
   });
 

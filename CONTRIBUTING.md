@@ -1,6 +1,6 @@
 # Contribuindo com o Pix Live
 
-> **Pix Live** é uma isca de portfólio pública: checkout Pix que não duplica dinheiro
+> **Pix Live** é um projeto público de portfólio: checkout Pix que não duplica dinheiro
 > (webhook assinado, idempotência e replay ao vivo). É uma **demo em sandbox do Mercado
 > Pago — não processa dinheiro real**. Escopo minúsculo, barra de produção.
 
