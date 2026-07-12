@@ -21,14 +21,15 @@ se fosse um produto de time, de propósito.
 
 Monorepo com **pnpm workspaces** (`pnpm-workspace.yaml`: `packages/*` e `apps/*`).
 
-| Pacote          | Estado      | O que é                                                                                                                        |
-| --------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/core` | **pronto**  | Domínio puro em TS: HMAC, idempotência, máquina de estados, money. Sem framework, cobertura ≥90% imposta.                      |
-| `apps/api`      | **pronto**  | API NestJS completa (webhook 3 camadas, rotas admin, loja, painel, Prisma/Postgres), provada por integração com Postgres real. |
-| `apps/web`      | _planejado_ | Front React + Vite (loja, página de pagamento, painel de conciliação).                                                         |
+| Pacote          | Estado     | O que é                                                                                                                        |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/core` | **pronto** | Domínio puro em TS: HMAC, idempotência, máquina de estados, money. Sem framework, cobertura ≥90% imposta.                      |
+| `apps/api`      | **pronto** | API NestJS completa (webhook 3 camadas, rotas admin, loja, painel, Prisma/Postgres), provada por integração com Postgres real. |
+| `apps/web`      | **pronto** | Front React + Vite completo (loja, página de pagamento com QR, painel de conciliação com replay-wow), testes de componente.    |
 
-Enquanto o `apps/web` e o Docker não existem, os comandos que dependem deles (compose, e2e)
-ainda não se aplicam — estão documentados aqui porque chegam junto com essas peças.
+O fluxo full-stack local (`docker compose up`) está **pronto e verificado** (Dockerfiles
+multi-stage non-root, bases pinadas por digest, hadolint/Trivy limpos). O e2e (Playwright)
+segue _planejado_ — chega na fase de CI-hardening.
 
 ## Pré-requisitos
 
@@ -43,9 +44,9 @@ ainda não se aplicam — estão documentados aqui porque chegam junto com essas
   corepack enable
   corepack prepare pnpm@9.15.4 --activate
   ```
-- **Docker** + **Docker Compose** — só para o fluxo local full-stack (_planejado_, chega com o
-  Dockerfile/compose e o `apps/web`). Não é necessário para o `packages/core` nem para a API
-  (que roda contra qualquer Postgres local).
+- **Docker** + **Docker Compose** — só para o fluxo local full-stack (`docker compose up`).
+  Não é necessário para o `packages/core` nem para a API (que roda contra qualquer
+  Postgres local).
 - **Git** com **assinatura de commit** configurada (GPG ou SSH). A branch protection de `main`
   exige commits verificados — configure `git config commit.gpgsign true` (ou o equivalente
   SSH) antes de contribuir. Veja "Fluxo de PR e branch protection".
@@ -92,18 +93,18 @@ Os testes de **integração** (Supertest + Postgres real) rodam com
 `DATABASE_URL=... pnpm test`; sem a variável eles **pulam** (`describe.skipIf`) e a suíte
 continua verde — é assim que o CI unit fica determinístico sem banco.
 
-### Full-stack local — `docker compose up` (_planejado_)
+### Full-stack local — `docker compose up`
 
-Quando o compose e o `apps/web` existirem, o alvo é **um comando** subir tudo com seed
-determinístico (incluindo o pedido já pago pré-semeado) em **modo mock do Mercado Pago**,
-sem precisar de conta no MP e sem rede:
+**Um comando** sobe tudo com seed determinístico (incluindo o pedido já pago
+pré-semeado) em **modo mock do Mercado Pago**, sem precisar de conta no MP e sem rede:
 
 ```bash
 docker compose up            # API (NestJS) + Postgres + web (React) — modo mock, offline
 ```
 
-O `docker-compose.yml` ainda não existe neste ponto do repo; ele acompanha os apps. Enquanto
-isso, `PAYMENT_PROVIDER=mock` no `.env` é o modo default que dispensa credenciais.
+O front fica em `http://127.0.0.1:8080` (nginx non-root com proxy `/api`); a API não
+publica porta no host. Fora do compose, `PAYMENT_PROVIDER=mock` no `.env` segue sendo o
+modo default que dispensa credenciais.
 
 ## Scripts disponíveis (raiz)
 
