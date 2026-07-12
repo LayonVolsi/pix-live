@@ -256,16 +256,23 @@ na rota pública de webhook.
 
 ## 7. Segredos e configuração
 
-- **Segredos reais** (`MP_WEBHOOK_SECRET` hoje; `MP_ACCESS_TOKEN` na fase 4) vivem **apenas** em
-  env vars / secret group do host (Render), **nunca** no repositório. O `.env.example` traz defaults
-  de desenvolvimento obviamente não-reais (`MP_WEBHOOK_SECRET=troque-este-segredo-de-dev-1234`,
+- **Segredos reais** (`MP_WEBHOOK_SECRET`, `MP_ACCESS_TOKEN`) vivem **apenas** em env vars / secret
+  group do host (Render), **nunca** no repositório. O `.env.example` traz defaults de
+  desenvolvimento obviamente não-reais (`MP_WEBHOOK_SECRET=troque-este-segredo-de-dev-1234`,
   `DEMO_TOKEN=demo-nao-secreto`); os valores reais só existem no host.
 - **`DEMO_TOKEN` não é segredo** (ver §5) — tem valor default no `.env.example` exatamente porque é
   público por design.
 - **Fail-fast no boot:** validação com **Zod puro plugada no `ConfigModule`** do Nest
   (`env.config.ts`) — a aplicação **não sobe** com configuração inválida. `MP_WEBHOOK_SECRET`
-  (≥16 chars) é obrigatório em **todos** os modos; `MP_ACCESS_TOKEN` entra no schema junto com o
-  adapter MP (fase 4 — hoje `mercadopago` é bloqueado por `throw` no `PaymentModule`).
+  (≥16 chars) é obrigatório em **todos** os modos; `MP_ACCESS_TOKEN` é obrigatório quando
+  `PAYMENT_PROVIDER=mercadopago`.
+- **Credencial de PRODUÇÃO do Mercado Pago é proibida — permanentemente.** O schema exige prefixo
+  `TEST-` no `MP_ACCESS_TOKEN`: um token de produção (`APP_USR-`) faz o processo **se recusar a
+  subir**, em qualquer `NODE_ENV`. "Não processa dinheiro real" é um **não-objetivo declarado**
+  desta demo (§9), não uma fase — então a promessa do documento é **executável**, não prosa. Quem
+  bifurcar este repositório para mover dinheiro de verdade precisa **apagar a trava
+  conscientemente**; a fricção é intencional. Nenhuma mensagem de erro do boot interpola o **valor**
+  do token (coberto por teste).
 - **`PAYMENT_PROVIDER=mock` é proibido em produção** — trava de segurança no próprio schema de env
   (`refine` do Zod): a aplicação não sobe em produção fingindo provedor.
 - **`trust proxy = 1` (exatamente 1 hop):** o rate limit não é enganável por `X-Forwarded-For`

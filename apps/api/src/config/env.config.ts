@@ -24,10 +24,28 @@ const EnvSchema = z
     // Token de demonstração das rotas /admin — NÃO é segredo (o front pré-anexa e
     // a UI rotula como público). Só evita cliques acidentais de bot; rate-limit à parte.
     DEMO_TOKEN: z.string().min(8, 'DEMO_TOKEN deve ter ao menos 8 caracteres'),
+    // Credencial do Mercado Pago. Só faz sentido no modo real — ver as travas abaixo.
+    // NUNCA interpolar o VALOR numa mensagem de erro (o boot loga o motivo no stderr).
+    MP_ACCESS_TOKEN: z.string().min(1).optional(),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.PAYMENT_PROVIDER === 'mock'), {
     message: 'PAYMENT_PROVIDER=mock é proibido em produção (trava de segurança)',
     path: ['PAYMENT_PROVIDER'],
+  })
+  .refine((env) => env.PAYMENT_PROVIDER !== 'mercadopago' || env.MP_ACCESS_TOKEN !== undefined, {
+    message: 'MP_ACCESS_TOKEN é obrigatório quando PAYMENT_PROVIDER=mercadopago',
+    path: ['MP_ACCESS_TOKEN'],
+  })
+  .refine((env) => env.MP_ACCESS_TOKEN === undefined || env.MP_ACCESS_TOKEN.startsWith('TEST-'), {
+    // Trava PERMANENTE, não "por enquanto". "Não processa dinheiro real" é um
+    // não-objetivo declarado do projeto (SECURITY.md §9), não uma fase — então o
+    // processo se RECUSA A SUBIR com credencial de produção do MP (`APP_USR-`).
+    // Isso transforma a promessa do documento em código executável: quem quiser
+    // mover dinheiro de verdade tem que apagar esta linha conscientemente.
+    message:
+      'MP_ACCESS_TOKEN deve ser credencial de teste (prefixo TEST-). ' +
+      'Credencial de produção é proibida: esta demo não processa dinheiro real.',
+    path: ['MP_ACCESS_TOKEN'],
   });
 
 export type Env = z.infer<typeof EnvSchema>;
