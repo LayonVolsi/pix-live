@@ -38,6 +38,9 @@ services:
     environment:
       # Host = nome do serviço na rede do compose (Q4), nunca localhost.
       DATABASE_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
+      # Sem pooler no compose: a conexão direta é a mesma. Obrigatória — o CLI do Prisma
+      # (migrate) não sobe sem ela, e não há fallback para a DATABASE_URL.
+      DIRECT_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +57,9 @@ services:
       NODE_ENV: test
       PORT: '3000'
       DATABASE_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
+      # Sem pooler no compose: a conexão direta é a mesma. Obrigatória — o CLI do Prisma
+      # (migrate) não sobe sem ela, e não há fallback para a DATABASE_URL.
+      DIRECT_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
       PAYMENT_PROVIDER: mock
       # A demo local roda offline, sem conta no Mercado Pago — o mock é intencional aqui.
       # A flag torna essa intenção explícita: um NODE_ENV=test copiado deste arquivo para

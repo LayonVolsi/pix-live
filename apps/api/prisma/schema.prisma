@@ -12,7 +12,17 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Conexão da aplicação. Em produção pode apontar para um POOLER (Supabase/PgBouncer em
+  // modo transaction), que multiplexa conexões e não suporta prepared statements nomeados.
+  url = env("DATABASE_URL")
+  // Conexão DIRETA, usada só por `prisma migrate`/`db push` (DDL, advisory locks). Migrations
+  // atrás de um pooler em modo transaction falham; sem este campo, o deploy quebraria no
+  // primeiro `migrate deploy` contra um host com pooler.
+  //
+  // NÃO há fallback automático: verificado com `prisma validate` — sem DIRECT_URL no ambiente
+  // o Prisma falha a validação do schema. Por isso ela é obrigatória em TODO ambiente que
+  // roda o CLI (local, CI, deploy). Sem pooler, aponte-a para o mesmo valor da DATABASE_URL.
+  directUrl = env("DIRECT_URL")
 }
 
 /// Estado do pedido. Espelha OrderStatus de @pix-live/core.
