@@ -27,6 +27,12 @@ const EnvSchema = z
     // Credencial do Mercado Pago. Só faz sentido no modo real — ver as travas abaixo.
     // NUNCA interpolar o VALOR numa mensagem de erro (o boot loga o motivo no stderr).
     MP_ACCESS_TOKEN: z.string().min(1).optional(),
+    // E-mail da conta de teste COMPRADORA do sandbox (payer.email da cobrança).
+    // Só faz sentido no modo real; obrigatório nele (refine abaixo). A janela de
+    // prova (2026-07-12) mostrou que o pagador genérico é RECUSADO pelo MP
+    // (`2034 Invalid users involved`/`4390 Payer email forbidden`) — por isso o
+    // valor é configurável, não hardcoded. É PII fraca: nunca interpolar em log/erro.
+    MP_TEST_PAYER_EMAIL: z.string().email().optional(),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.PAYMENT_PROVIDER === 'mock'), {
     message: 'PAYMENT_PROVIDER=mock é proibido em produção (trava de segurança)',
@@ -36,6 +42,18 @@ const EnvSchema = z
     message: 'MP_ACCESS_TOKEN é obrigatório quando PAYMENT_PROVIDER=mercadopago',
     path: ['MP_ACCESS_TOKEN'],
   })
+  .refine(
+    (env) => env.PAYMENT_PROVIDER !== 'mercadopago' || env.MP_TEST_PAYER_EMAIL !== undefined,
+    {
+      // Fail-fast no boot: a janela de prova mostrou que o pagador genérico é
+      // recusado pelo MP. Sem um e-mail de conta de teste compradora, o primeiro
+      // clique no modo real vira erro 500 — melhor recusar subir com o motivo claro.
+      message:
+        'MP_TEST_PAYER_EMAIL é obrigatório quando PAYMENT_PROVIDER=mercadopago ' +
+        '(e-mail de conta de teste compradora do sandbox)',
+      path: ['MP_TEST_PAYER_EMAIL'],
+    },
+  )
   .refine((env) => env.MP_ACCESS_TOKEN === undefined || env.MP_ACCESS_TOKEN.startsWith('TEST-'), {
     // Trava PERMANENTE, não "por enquanto". "Não processa dinheiro real" é um
     // não-objetivo declarado do projeto (SECURITY.md §9), não uma fase — então o

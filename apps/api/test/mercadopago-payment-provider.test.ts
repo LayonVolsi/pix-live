@@ -12,6 +12,7 @@ import {
  */
 
 const TOKEN = 'TEST-token-de-teste';
+const TEST_PAYER_EMAIL = 'test_user_123@testuser.com';
 const PAYMENT_OK = {
   id: 123456789,
   status: 'approved',
@@ -31,7 +32,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function providerWith(fetchImpl: typeof fetch): MercadoPagoPaymentProvider {
-  return new MercadoPagoPaymentProvider(TOKEN, fetchImpl);
+  return new MercadoPagoPaymentProvider(TOKEN, TEST_PAYER_EMAIL, fetchImpl);
 }
 
 describe('MercadoPagoPaymentProvider — createPixCharge', () => {
@@ -58,11 +59,29 @@ describe('MercadoPagoPaymentProvider — createPixCharge', () => {
     // Redirect nunca é seguido: 3xx rejeita, não navega para outro host.
     expect(init.redirect).toBe('error');
     expect(init.signal).toBeInstanceOf(AbortSignal);
-    // Centavos viram reais na saída, sem float sujo.
+    // Centavos viram reais na saída, sem float sujo. O pagador é o CONFIGURADO
+    // (conta de teste compradora), nunca o literal genérico que o MP recusa.
     expect(JSON.parse(init.body as string)).toMatchObject({
       transaction_amount: 19.99,
       payment_method_id: 'pix',
       external_reference: 'order-uuid-1',
+      payer: { email: TEST_PAYER_EMAIL },
+    });
+  });
+
+  it('um payerEmail explícito no input sobrepõe o pagador de teste configurado', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(PAYMENT_OK));
+    await providerWith(fetchMock).createPixCharge({
+      orderId: 'order-uuid-1',
+      amountCents: 1999,
+      description: 'Kit',
+      expiresInSeconds: 900,
+      payerEmail: 'comprador.especifico@testuser.com',
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      payer: { email: 'comprador.especifico@testuser.com' },
     });
   });
 

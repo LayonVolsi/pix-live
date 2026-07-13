@@ -111,6 +111,12 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
 
   constructor(
     private readonly accessToken: string,
+    /**
+     * E-mail da conta de teste compradora do sandbox, usado como `payer.email`.
+     * Injetado (não hardcoded) porque o MP recusa o pagador genérico — ver a
+     * trava `MP_TEST_PAYER_EMAIL` em `env.config.ts` e a janela de prova.
+     */
+    private readonly testPayerEmail: string,
     /** Injetável para testar offline — a suíte NUNCA chama o MP de verdade. */
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
   ) {}
@@ -129,7 +135,7 @@ export class MercadoPagoPaymentProvider implements PaymentProvider {
         payment_method_id: 'pix',
         external_reference: input.orderId,
         date_of_expiration: expiresAt.toISOString(),
-        payer: { email: input.payerEmail ?? 'test_user@testuser.com' },
+        payer: { email: input.payerEmail ?? this.testPayerEmail },
       },
     });
 
