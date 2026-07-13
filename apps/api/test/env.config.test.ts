@@ -26,13 +26,41 @@ describe('validateEnv — travas do provedor de pagamento', () => {
     );
   });
 
-  it('modo mercadopago com credencial de teste sobe', () => {
+  it('modo mercadopago com credencial de teste E pagador de teste sobe', () => {
     const env = validateEnv({
       ...BASE,
       PAYMENT_PROVIDER: 'mercadopago',
       MP_ACCESS_TOKEN: 'TEST-1234567890-abc',
+      MP_TEST_PAYER_EMAIL: 'test_user_123@testuser.com',
     });
     expect(env.MP_ACCESS_TOKEN).toBe('TEST-1234567890-abc');
+    expect(env.MP_TEST_PAYER_EMAIL).toBe('test_user_123@testuser.com');
+  });
+
+  it('modo mercadopago SEM pagador de teste não sobe (a janela provou o pagador genérico morto)', () => {
+    expect(() =>
+      validateEnv({
+        ...BASE,
+        PAYMENT_PROVIDER: 'mercadopago',
+        MP_ACCESS_TOKEN: 'TEST-1234567890-abc',
+      }),
+    ).toThrow(/MP_TEST_PAYER_EMAIL é obrigatório/);
+  });
+
+  it('pagador de teste com e-mail inválido não sobe', () => {
+    expect(() =>
+      validateEnv({
+        ...BASE,
+        PAYMENT_PROVIDER: 'mercadopago',
+        MP_ACCESS_TOKEN: 'TEST-1234567890-abc',
+        MP_TEST_PAYER_EMAIL: 'nao-e-email',
+      }),
+    ).toThrow(/MP_TEST_PAYER_EMAIL/);
+  });
+
+  it('modo mock não exige o pagador de teste', () => {
+    const env = validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock' });
+    expect(env.MP_TEST_PAYER_EMAIL).toBeUndefined();
   });
 
   it('TRAVA PERMANENTE: credencial de PRODUÇÃO do MP (APP_USR-) não sobe, nunca', () => {

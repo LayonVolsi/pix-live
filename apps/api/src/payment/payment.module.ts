@@ -27,11 +27,19 @@ import type { PaymentProvider } from './payment-provider.port.js';
         }
         // O Zod já garantiu presença e prefixo TEST-; aqui só falharia se alguém
         // instanciasse o módulo fora do boot validado.
+        // DÍVIDA TÉCNICA (backlog B12): este é o 2º guard idêntico contra
+        // `string | undefined` porque o ConfigService é injetado sem o generic
+        // `<Env, true>`. Na 3ª credencial, trocar por `ConfigService<Env, true>`
+        // ou um helper `requireEnvVar()` — deferido para não amalgamar refactor.
         const token = config.get<string>('MP_ACCESS_TOKEN');
         if (token === undefined || token === '') {
           throw new Error('MP_ACCESS_TOKEN ausente no modo mercadopago');
         }
-        return new MercadoPagoPaymentProvider(token);
+        const payerEmail = config.get<string>('MP_TEST_PAYER_EMAIL');
+        if (payerEmail === undefined || payerEmail === '') {
+          throw new Error('MP_TEST_PAYER_EMAIL ausente no modo mercadopago');
+        }
+        return new MercadoPagoPaymentProvider(token, payerEmail);
       },
     },
   ],
