@@ -15,7 +15,7 @@ const BASE = {
 
 describe('validateEnv — travas do provedor de pagamento', () => {
   it('modo mock não exige credencial do Mercado Pago', () => {
-    const env = validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock' });
+    const env = validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock', ALLOW_MOCK_PROVIDER: 'true' });
     expect(env.PAYMENT_PROVIDER).toBe('mock');
     expect(env.MP_ACCESS_TOKEN).toBeUndefined();
   });
@@ -59,8 +59,41 @@ describe('validateEnv — travas do provedor de pagamento', () => {
   });
 
   it('modo mock não exige o pagador de teste', () => {
-    const env = validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock' });
+    const env = validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock', ALLOW_MOCK_PROVIDER: 'true' });
     expect(env.MP_TEST_PAYER_EMAIL).toBeUndefined();
+  });
+
+  it('FAIL-CLOSED: mock SEM ALLOW_MOCK_PROVIDER não sobe', () => {
+    // O default é `false`: provedor falso exige consentimento por escrito, em qualquer
+    // NODE_ENV. Se este teste algum dia passar a subir, a trava foi desarmada.
+    expect(() => validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock' })).toThrow(/ALLOW_MOCK_PROVIDER/);
+  });
+
+  it('FAIL-CLOSED: o default do PAYMENT_PROVIDER (mock) também não sobe sozinho', () => {
+    // PAYMENT_PROVIDER tem default 'mock'. Sem a flag, nem o default sobe — é deliberado:
+    // a recusa é ruidosa e imediata, e acontece no caminho do dinheiro.
+    expect(() => validateEnv({ ...BASE })).toThrow(/ALLOW_MOCK_PROVIDER/);
+  });
+
+  it('o desacoplamento de NODE_ENV é o ponto: NODE_ENV=test com mock exige a flag', () => {
+    // Este é o bug real que a flag fecha. O docker-compose usa NODE_ENV=test (para fugir
+    // de um crash do pino-pretty). Copiar essas vars para um host público NÃO pode bastar
+    // para servir QR falso numa vitrine de pagamento.
+    expect(() => validateEnv({ ...BASE, NODE_ENV: 'test', PAYMENT_PROVIDER: 'mock' })).toThrow(
+      /ALLOW_MOCK_PROVIDER/,
+    );
+  });
+
+  it('DEFESA EM PROFUNDIDADE: nem com a flag ligada o mock sobe em produção', () => {
+    // A trava de produção sobrevive à flag — as duas teriam que ser desarmadas de propósito.
+    expect(() =>
+      validateEnv({
+        ...BASE,
+        NODE_ENV: 'production',
+        PAYMENT_PROVIDER: 'mock',
+        ALLOW_MOCK_PROVIDER: 'true',
+      }),
+    ).toThrow(/proibido em produção/);
   });
 
   it('TRAVA PERMANENTE: credencial de PRODUÇÃO do MP (APP_USR-) não sobe, nunca', () => {

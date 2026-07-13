@@ -55,6 +55,10 @@ services:
       PORT: '3000'
       DATABASE_URL: postgresql://pixlive:pixlive@postgres:5432/pixlive?schema=public
       PAYMENT_PROVIDER: mock
+      # A demo local roda offline, sem conta no Mercado Pago — o mock é intencional aqui.
+      # A flag torna essa intenção explícita: um NODE_ENV=test copiado deste arquivo para
+      # um host público NÃO basta mais para servir cobrança falsa.
+      ALLOW_MOCK_PROVIDER: 'true'
       # Defaults NÃO-secretos da demo (idênticos ao .env.example, rotulados
       # na UI); override único via ambiente do shell (D7).
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-troque-este-segredo-de-dev-1234}
