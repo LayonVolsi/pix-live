@@ -28,6 +28,11 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Antes de qualquer build: nenhuma tese comercial na árvore publicável. Vem primeiro
+      # porque é o único gate cuja falha é IRREVERSÍVEL depois do push — conteúdo publicado
+      # sobrevive em refs/pull/* mesmo após rewrite + force-push. Não depende de build.
+      - name: Gate de divulgação
+        run: pnpm check:disclosure
       # o client Prisma é gerado, não versionado — em checkout limpo o
       # @prisma/client exporta stubs sem os modelos e lint/typecheck/build
       # quebram (TS2305). O job test não precisa: vitest não checa tipos e a

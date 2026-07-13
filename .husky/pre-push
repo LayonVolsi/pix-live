@@ -1,1 +1,3 @@
-pnpm typecheck && pnpm test
+# O gate de divulgação vem PRIMEIRO: é o único aqui cuja falha é irreversível depois do
+# push (conteúdo publicado sobrevive em refs/pull/* mesmo após rewrite + force-push).
+pnpm check:disclosure && pnpm typecheck && pnpm test
