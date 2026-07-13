@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MockPaymentProvider } from '../src/payment/mock-payment-provider.js';
 import { OutboundBudgetService } from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { makeTestPrisma } from './helpers/test-prisma.js';
 import { WebhookService } from '../src/webhook/webhook.service.js';
 import { AdminService } from '../src/admin/admin.service.js';
 
@@ -21,7 +22,7 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
   } as unknown as ConfigService;
 
   beforeAll(async () => {
-    prisma = new PrismaService();
+    prisma = makeTestPrisma();
     await prisma.$connect();
   });
 

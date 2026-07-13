@@ -18,6 +18,15 @@ const EnvSchema = z
       .refine((v) => v.startsWith('postgres'), {
         message: 'DATABASE_URL deve ser uma URL Postgres (postgres:// ou postgresql://)',
       }),
+    // Teto do pool do Prisma. Sem isto, o Prisma dimensiona por `num_cpus × 2 + 1` lido do
+    // CONTAINER — número que nada tem a ver com o teto de conexões do Postgres gerenciado
+    // (baixo nos planos de entrada). É env, e não constante, porque o valor correto depende
+    // do host: atrás de um pooler (Supabase/PgBouncer em modo transaction) o certo é 1, para
+    // não competir com o pooler externo; contra um Postgres cru, calibra-se pelo plano.
+    DATABASE_CONNECTION_LIMIT: z.coerce.number().int().positive().max(100).default(5),
+    // Segundos que uma query espera por uma conexão livre antes de falhar. Falhar rápido e
+    // alto é melhor que empilhar requests numa fila invisível até o timeout do LB.
+    DATABASE_POOL_TIMEOUT: z.coerce.number().int().nonnegative().max(60).default(10),
     PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
     // Segredo do webhook (verificação HMAC). Mínimo defensivo de comprimento.
     MP_WEBHOOK_SECRET: z.string().min(16, 'MP_WEBHOOK_SECRET deve ter ao menos 16 caracteres'),

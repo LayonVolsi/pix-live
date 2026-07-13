@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MockPaymentProvider } from '../src/payment/mock-payment-provider.js';
 import { OutboundBudgetService } from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { makeTestPrisma } from './helpers/test-prisma.js';
 import { OrdersService } from '../src/orders/orders.service.js';
 
 const HAS_DB =
@@ -19,7 +20,7 @@ describe.skipIf(!HAS_DB)('OrdersService (integração, Postgres real)', () => {
   let orders: OrdersService;
 
   beforeAll(async () => {
-    prisma = new PrismaService();
+    prisma = makeTestPrisma();
     await prisma.$connect();
   });
 
