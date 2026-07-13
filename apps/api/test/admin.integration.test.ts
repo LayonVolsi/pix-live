@@ -1,6 +1,7 @@
 import type { ConfigService } from '@nestjs/config';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MockPaymentProvider } from '../src/payment/mock-payment-provider.js';
+import { OutboundBudgetService } from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { WebhookService } from '../src/webhook/webhook.service.js';
 import { AdminService } from '../src/admin/admin.service.js';
@@ -37,7 +38,7 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
 
     // Mesma instância do mock nos dois serviços (singleton no app real).
     mock = new MockPaymentProvider();
-    const webhook = new WebhookService(prisma, fakeConfig, mock);
+    const webhook = new WebhookService(prisma, fakeConfig, mock, new OutboundBudgetService());
     admin = new AdminService(prisma, fakeConfig, webhook, mock);
 
     const product = await prisma.product.create({

@@ -14,6 +14,9 @@ const VISUAIS: Readonly<Record<string, Visual>> = {
     rotulo: 'pagamento desconhecido',
     classes: 'border-tinta-fraca text-tinta-fraca',
   },
+  // O provedor confirmou o pagamento, mas ele não corresponde ao pedido (valor
+  // ou referência): crédito recusado. Vermelho — é o caso mais grave que não é erro.
+  dados_divergentes: { rotulo: 'dados divergentes', classes: 'border-erro text-erro' },
   erro: { rotulo: 'erro', classes: 'border-erro text-erro' },
 };
 

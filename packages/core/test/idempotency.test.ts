@@ -4,6 +4,7 @@ import {
   decideVerdict,
   httpStatusForVerdict,
   isTimestampWithinWindow,
+  remoteLookupNeeded,
   verdictResultsInCredit,
   type WebhookEvaluation,
 } from '../src/idempotency.js';
@@ -129,5 +130,59 @@ describe('isTimestampWithinWindow', () => {
   it('rejeita valores não finitos sem lançar', () => {
     expect(isTimestampWithinWindow(Number.NaN, now)).toBe(false);
     expect(isTimestampWithinWindow(now / 1000, Number.POSITIVE_INFINITY)).toBe(false);
+  });
+});
+
+/**
+ * A invariante que licencia pular a consulta ao provedor.
+ *
+ * Exaustivo (2^4 = 16 combinações dos fatos que NÃO dependem do provedor):
+ * sempre que `remoteLookupNeeded` diz `false`, o veredito é idêntico com
+ * `orderKnown: true` e `orderKnown: false` — ou seja, perguntar ao provedor não
+ * muda nada e a chamada externa é desperdício. Se alguém reordenar
+ * `decideVerdict` (ex.: subir `orderKnown` acima de `creditAlreadyExists`), este
+ * teste fica vermelho ANTES de virar bug de crédito silencioso em produção.
+ */
+describe('remoteLookupNeeded × decideVerdict (invariante do acoplamento)', () => {
+  const BOOLS = [false, true] as const;
+
+  it('quando não é necessário consultar o provedor, o veredito independe de orderKnown', () => {
+    let skipped = 0;
+    for (const signatureValid of BOOLS) {
+      for (const requestIdAlreadyProcessed of BOOLS) {
+        for (const creditAlreadyExists of BOOLS) {
+          for (const tsWithinWindow of BOOLS) {
+            const facts = {
+              signatureValid,
+              requestIdAlreadyProcessed,
+              creditAlreadyExists,
+              tsWithinWindow,
+            };
+            if (remoteLookupNeeded(facts)) continue;
+            skipped += 1;
+            const semProvedor = decideVerdict({ ...facts, orderKnown: false });
+            const comProvedor = decideVerdict({ ...facts, orderKnown: true });
+            expect(semProvedor, JSON.stringify(facts)).toBe(comProvedor);
+          }
+        }
+      }
+    }
+    // Sanidade: a invariante não é vacuamente verdadeira (há casos de skip).
+    expect(skipped).toBeGreaterThan(0);
+  });
+
+  it('exige consulta apenas quando assinatura ok, sem dedupe e sem crédito prévio', () => {
+    const base = {
+      signatureValid: true,
+      requestIdAlreadyProcessed: false,
+      creditAlreadyExists: false,
+      tsWithinWindow: true,
+    };
+    expect(remoteLookupNeeded(base)).toBe(true);
+    expect(remoteLookupNeeded({ ...base, signatureValid: false })).toBe(false);
+    expect(remoteLookupNeeded({ ...base, requestIdAlreadyProcessed: true })).toBe(false);
+    expect(remoteLookupNeeded({ ...base, creditAlreadyExists: true })).toBe(false);
+    // ts fora da janela é sinal, não barreira: ainda precisa saber quem é o pedido.
+    expect(remoteLookupNeeded({ ...base, tsWithinWindow: false })).toBe(true);
   });
 });

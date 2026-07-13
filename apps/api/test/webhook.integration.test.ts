@@ -1,7 +1,12 @@
 import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import { WebhookSource } from '@prisma/client';
 import { buildSignatureManifest, computeSignature } from '@pix-live/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  OutboundBudgetService,
+  REPLAY_LOOKUP_BUDGET,
+} from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { WebhookService } from '../src/webhook/webhook.service.js';
 import type { WebhookInput } from '../src/webhook/webhook.service.js';
@@ -44,6 +49,38 @@ function flakyProvider(orderId: string, amountCents: number, failTimes: number):
       if (calls <= failTimes) return Promise.reject(new Error('timeout de rede simulado'));
       return Promise.resolve({ status: 'approved', externalReference: orderId, amountCents });
     },
+  };
+}
+
+/**
+ * Provider que EXPLODE se `getPayment` for invocado. Prova, por construção, que
+ * o caminho não faz nenhuma chamada externa — com o provedor real, cada chamada
+ * é uma requisição autenticada de saída (quota/custo/abuso).
+ */
+function explodingProvider(): PaymentProvider {
+  return {
+    createPixCharge: (): Promise<PixCharge> => {
+      throw new Error('não usado no teste');
+    },
+    getPayment: (): Promise<RemotePayment | null> => {
+      throw new Error('getPayment NÃO deveria ter sido chamado');
+    },
+  };
+}
+
+/** Provider que confirma o pagamento, mas com dados que NÃO batem com o pedido. */
+function mismatchedProvider(overrides: Partial<RemotePayment>): PaymentProvider {
+  return {
+    createPixCharge: (): Promise<PixCharge> => {
+      throw new Error('não usado no teste');
+    },
+    getPayment: (): Promise<RemotePayment | null> =>
+      Promise.resolve({
+        status: 'approved',
+        externalReference: 'order-de-outro-fluxo',
+        amountCents: 4700,
+        ...overrides,
+      }),
   };
 }
 
@@ -102,7 +139,12 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
       },
     });
     orderId = order.id;
-    service = new WebhookService(prisma, fakeConfig, stubProvider(orderId, 4700));
+    service = new WebhookService(
+      prisma,
+      fakeConfig,
+      stubProvider(orderId, 4700),
+      new OutboundBudgetService(),
+    );
   });
 
   it('caminho feliz: credita 1× e marca o pedido como pago', async () => {
@@ -146,8 +188,127 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
     expect(await prisma.orderCredit.count()).toBe(0);
   });
 
+  it('VALOR divergente do provedor → NÃO credita (dados_divergentes)', async () => {
+    // O provedor confirma "aprovado", mas de um pagamento de R$ 1,00 — e o pedido
+    // é de R$ 47,00. Sem a conferência, creditaríamos os R$ 47,00 na palavra do
+    // provedor sobre um id. É o buraco que a tese do projeto não pode ter.
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: orderId, amountCents: 100 }),
+      new OutboundBudgetService(),
+    );
+
+    const out = await divergente.process(signedInput(PAYMENT_ID, 'req-div-1', nowSeconds));
+
+    expect(out.verdict).toBe('dados_divergentes');
+    expect(out.status).toBe(200); // ack: divergência é permanente, reentrega não conserta
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: PAYMENT_ID } })).toBe(0);
+    const pedido = await prisma.order.findUnique({ where: { id: orderId } });
+    expect(pedido?.status).toBe('pending'); // não virou pago
+  });
+
+  it('REFERÊNCIA externa de outro pedido → NÃO credita (dados_divergentes)', async () => {
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: 'pedido-de-outra-loja', amountCents: 4700 }),
+      new OutboundBudgetService(),
+    );
+
+    const out = await divergente.process(signedInput(PAYMENT_ID, 'req-div-2', nowSeconds));
+
+    expect(out.verdict).toBe('dados_divergentes');
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: PAYMENT_ID } })).toBe(0);
+  });
+
+  it('a divergência fica na trilha de auditoria (evento gravado, não engolido)', async () => {
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: orderId, amountCents: 1 }),
+      new OutboundBudgetService(),
+    );
+    await divergente.process(signedInput(PAYMENT_ID, 'req-div-3', nowSeconds));
+
+    const evento = await prisma.webhookEvent.findFirst({
+      where: { requestIdHeader: 'req-div-3' },
+    });
+    expect(evento?.verdict).toBe('dados_divergentes');
+  });
+
+  it('orçamento de saída barra o replay em modo real, mas NUNCA o webhook genuíno', async () => {
+    // Config em modo real: o orçamento passa a valer.
+    const configReal = {
+      get: (key: string): string | undefined => {
+        if (key === 'MP_WEBHOOK_SECRET') return SECRET;
+        if (key === 'PAYMENT_PROVIDER') return 'mercadopago';
+        return undefined;
+      },
+    } as unknown as ConfigService;
+
+    const budget = new OutboundBudgetService();
+    const svc = new WebhookService(prisma, configReal, stubProvider(orderId, 4700), budget);
+
+    // Esgota o orçamento de replay (5/min).
+    for (let i = 0; i < 5; i += 1) {
+      budget.consume('replay_lookup', REPLAY_LOOKUP_BUDGET);
+    }
+
+    // Replay (source=admin_replay) com o orçamento zerado → 429, sem tocar o provedor.
+    await expect(
+      svc.process({
+        ...signedInput('pay-nao-creditado', 'req-budget-1', nowSeconds),
+        source: WebhookSource.admin_replay,
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+
+    // O webhook GENUÍNO do MP passa mesmo com o orçamento de replay zerado —
+    // orçá-lo seria auto-DoS: é o caminho do dinheiro.
+    const genuino = await svc.process(signedInput(PAYMENT_ID, 'req-budget-2', nowSeconds));
+    expect(genuino.verdict).toBe('processado');
+  });
+
+  it('replay de pedido JÁ CREDITADO não consulta o provedor (zero chamada externa)', async () => {
+    // Credita de verdade (com o stub normal).
+    const primeira = await service.process(signedInput(PAYMENT_ID, 'req-lazy-1', nowSeconds));
+    expect(primeira.verdict).toBe('processado');
+
+    // Agora, um provider que explode se for tocado: o crédito já existe no banco,
+    // logo o veredito não depende do provedor — a Camada 3 decide sozinha.
+    const semRede = new WebhookService(
+      prisma,
+      fakeConfig,
+      explodingProvider(),
+      new OutboundBudgetService(),
+    );
+    const replay = await semRede.process(signedInput(PAYMENT_ID, 'req-lazy-2', nowSeconds));
+
+    expect(replay.verdict).toBe('duplicata_ignorada');
+    expect(await prisma.orderCredit.count({ where: { mpPaymentId: PAYMENT_ID } })).toBe(1);
+  });
+
+  it('reentrega com request-id já visto não consulta o provedor (dedupe da Camada 2)', async () => {
+    await service.process(signedInput(PAYMENT_ID, 'req-lazy-3', nowSeconds));
+
+    const semRede = new WebhookService(
+      prisma,
+      fakeConfig,
+      explodingProvider(),
+      new OutboundBudgetService(),
+    );
+    const reentrega = await semRede.process(signedInput(PAYMENT_ID, 'req-lazy-3', nowSeconds));
+
+    expect(reentrega.verdict).toBe('duplicata_ignorada');
+  });
+
   it('falha transitória de getPayment → 500; reentrega com MESMO request-id credita (finding 1)', async () => {
-    const flaky = new WebhookService(prisma, fakeConfig, flakyProvider(orderId, 4700, 1));
+    const flaky = new WebhookService(
+      prisma,
+      fakeConfig,
+      flakyProvider(orderId, 4700, 1),
+      new OutboundBudgetService(),
+    );
     // 1ª entrega: getPayment falha → 500, e NADA é persistido (senão envenenaria o dedupe).
     await expect(
       flaky.process(signedInput(PAYMENT_ID, 'req-retry', nowSeconds)),

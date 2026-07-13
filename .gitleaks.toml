@@ -1,0 +1,31 @@
+# Configuração do gitleaks — estende as regras padrão e adiciona um allowlist
+# ESTREITO e justificado. O gate continua valendo para todo o resto do repositório.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "gitleaks-allowlisted-fixtures"
+description = "placeholder (as regras reais vêm do conjunto padrão)"
+regex = '''zzz-nunca-casa-com-nada-zzz'''
+
+# Por que este allowlist existe:
+#
+# Os testes de `env.config` provam a TRAVA que faz o processo se RECUSAR A SUBIR
+# com uma credencial de PRODUÇÃO do Mercado Pago (prefixo `APP_USR-`) e que a
+# mensagem de erro nunca vaza o valor do token. Para provar isso, os testes
+# precisam CONTER uma string com o formato de credencial de produção — ela é
+# sintética, obviamente falsa (`nao-me-vaze`, `1234567890`), e a única razão de
+# existir é o próprio gate de segurança.
+#
+# O allowlist é limitado a esses arquivos de teste e a esses valores sintéticos:
+# nenhuma credencial real do repositório é dispensada por ele.
+[allowlist]
+description = "credenciais SINTÉTICAS usadas para provar a trava anti-produção"
+paths = [
+  '''apps/api/test/env\.config\.test\.ts''',
+  '''apps/api/test/mercadopago-payment-provider\.test\.ts''',
+]
+regexes = [
+  '''APP_USR-(nao-me-vaze-)?1234567890(-real)?''',
+  '''TEST-(1234567890-abc|token-de-teste)''',
+]
