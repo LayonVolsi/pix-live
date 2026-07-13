@@ -48,7 +48,7 @@ export class AdminService {
   /**
    * Reenvia um webhook: invoca o pipeline em processo com source=admin_replay e
    * um request-id NOVO. A Camada 3 detecta o crédito já existente → duplicata
-   * (o "bloqueado 1×" do wow). Nunca posta na rota pública.
+   * (o "bloqueado 1×" da demonstração). Nunca posta na rota pública.
    */
   async replay(webhookEventId: string): Promise<WebhookOutcome> {
     const event = await this.prisma.webhookEvent.findUnique({ where: { id: webhookEventId } });

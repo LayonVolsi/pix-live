@@ -41,7 +41,7 @@ describe.skipIf(!HAS_DB)('ReconciliationService (integração, Postgres real)', 
         paidAt: new Date(),
       },
     });
-    // Um evento processado + um bloqueado (o wow: processado 1× · bloqueado 1×).
+    // Um evento processado + um bloqueado (a demonstração: processado 1× · bloqueado 1×).
     await prisma.webhookEvent.createMany({
       data: [
         {

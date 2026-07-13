@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 /**
  * Seed determinístico. Cria o produto fixo e UM pedido já pago com histórico de
- * webhook — o caminho rápido do wow: o avaliador abre o painel, clica "reenviar"
+ * webhook — o caminho rápido da demonstração: o visitante abre o painel, clica "reenviar"
  * nesse pedido e vê a idempotência bloquear em <10s, sem gerar nada.
  */
 const prisma = new PrismaClient();

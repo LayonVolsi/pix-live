@@ -42,7 +42,7 @@ export class OrdersService {
     //
     // Fail-closed e HONESTO: quando acaba, a demo diz que acabou. Cair para o mock
     // em silêncio mostraria um QR falso alegando sandbox real — mentira para o
-    // avaliador, que é pior que a indisponibilidade.
+    // visitante, que é pior que a indisponibilidade.
     if (this.isRealProvider() && !this.budget.consume('create_charge', CREATE_CHARGE_BUDGET)) {
       throw new ServiceUnavailableException(
         'demonstração temporariamente indisponível — limite de cobranças de sandbox atingido',

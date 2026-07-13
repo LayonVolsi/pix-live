@@ -69,7 +69,7 @@ describe('OutboundBudgetService', () => {
       { limit: 30, windowMs: 3_600_000 },
       { limit: 200, windowMs: 86_400_000 },
     ]);
-    // Replay é leitura — e o caminho do wow nem chega a consultar o provedor.
+    // Replay é leitura — e o caminho da demonstração nem chega a consultar o provedor.
     expect(REPLAY_LOOKUP_BUDGET).toEqual([{ limit: 5, windowMs: 60_000 }]);
   });
 });

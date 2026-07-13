@@ -61,8 +61,23 @@ describe('gate de divulgação', () => {
       ['**Contraste que vende:** escopo de brinquedo', 'contraste que vende'],
       ['o que fisga um avaliador técnico de big tech', 'fisga / avaliador técnico'],
       ['selecionadas para o trio de projetos públicos', 'trio de projetos'],
+      // Dispersos pela árvore (46 ocorrências em 18 arquivos), o mesmo enquadramento:
+      // o leitor como alguém a ser conduzido a uma reação.
+      ['### O wow em 10 segundos', 'wow (era um H3 do README público)'],
+      ['[ visitante anônimo / avaliador ]', 'avaliador (era um ator do threat model)'],
+      ['dar fricção zero ao avaliador', 'avaliador'],
     ])('pega a tese em %j (via %s)', (line) => {
       expect(scanText(line, 'f')).not.toHaveLength(0);
+    });
+  });
+
+  describe('varre MENSAGENS DE COMMIT, não só a árvore', () => {
+    // Elas são públicas para sempre. E o modo de falha é traiçoeiro: um commit que REMOVE a
+    // tese pode reintroduzi-la ao citar textualmente o que removeu. Foi exatamente o que
+    // aconteceu na primeira versão destes commits — o gate pegou.
+    it('pega a tese citada dentro de uma mensagem de commit', () => {
+      const msg = 'docs: remove o parágrafo que declarava a vaga-alvo do projeto';
+      expect(scanText(msg, 'commit abc1234')).not.toHaveLength(0);
     });
   });
 

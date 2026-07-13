@@ -2,7 +2,7 @@
 
 - **Status:** aceito
 - **Data:** 2026-07-02
-- **Contexto:** o wow do projeto é reenviar o mesmo webhook e ver a idempotência
+- **Contexto:** a demonstração do projeto é reenviar o mesmo webhook e ver a idempotência
   bloquear a segunda entrega. Em produção esse botão **não existiria** — a Camada 2
   rejeitaria a reentrega pelo dedupe de delivery-id, e ações administrativas seriam
   autenticadas de verdade. A demo precisa da affordance sem abrir um vetor real.
@@ -19,7 +19,7 @@
   verificação em processo** — a Camada 1 valida a assinatura de verdade.
 - As duas ações vivem em rotas `/api/v1/admin/*` separadas, protegidas por
   **demo-token explicitamente NÃO-secreto** (`DEMO_TOKEN`) com rate limit próprio
-  mais agressivo. O token existe para separação de rota e fricção zero do avaliador,
+  mais agressivo. O token existe para separação de rota e fricção zero do visitante,
   não para fingir segredo — e é rotulado assim.
 - A rota pública **estruturalmente não lê** nenhum campo de origem do request: o
   controller monta o input só com `rawBody`/`data.id`/`x-signature`/`x-request-id`,
@@ -33,6 +33,6 @@ fronteira está declarada no `SECURITY.md` (§5 e §9) para não haver overclaim
 
 ## Consequências
 
-- O avaliador exercita o caminho de idempotência real (Camadas 1–3) sem login.
+- O visitante exercita o caminho de idempotência real (Camadas 1–3) sem login.
 - O demo-token público é alvo esperado de bot — o rate limit estratificado é a
   defesa real, e o dano possível se resume a eventos de demo no próprio sandbox.

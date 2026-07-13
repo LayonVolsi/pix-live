@@ -25,7 +25,7 @@ export function Painel(): ReactElement {
     refetchIntervalInBackground: false,
   });
 
-  // O WOW: reenvia o webhook em processo (rota admin) e a idempotência bloqueia
+  // A DEMONSTRAÇÃO: reenvia o webhook em processo (rota admin) e a idempotência bloqueia
   // a 2ª entrega — o contador do pedido vira "processado 1× · bloqueado 1×".
   const queryClient = useQueryClient();
   const reenviar = useMutation({

@@ -13,6 +13,13 @@ import { PrismaClient } from '@prisma/client';
  * Parâmetros já presentes na URL são respeitados (o operador do deploy manda): só
  * preenchemos o que falta. Assim um `DATABASE_URL` vindo pronto de um pooler continua
  * válido sem que o código o sobrescreva por trás.
+ *
+ * ACOPLAMENTO DELIBERADO, não o quebre sem pensar: `new URL()` lança em senhas com `/` ou
+ * `#` crus (não percent-encoded). Isso não explode aqui porque o Zod já valida DATABASE_URL
+ * com `z.string().url()`, que usa **o mesmo parser** — a URL chega aqui pré-validada, e o
+ * erro sai como falha de env legível, não como crash no boot do Prisma. Se um dia essa
+ * validação virar regex customizada mais permissiva, esta função passa a ser o ponto de
+ * crash. Trocar as duas juntas, ou percent-encodar aqui.
  */
 export function withPoolLimits(url: string, connectionLimit: number, poolTimeout: number): string {
   const parsed = new URL(url);

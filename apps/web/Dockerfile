@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile --filter @pix-live/web
 COPY apps/web/ apps/web/
 # Token de demonstração PÚBLICO por design (a UI o rotula) — baked no bundle
 # pelo Vite. B4: o compose alimenta este ARG com a MESMA variável que vira o
-# DEMO_TOKEN da api — fonte única, sem dessincronia silenciosa (401 no wow).
+# DEMO_TOKEN da api — fonte única, sem dessincronia silenciosa (401 na demonstração).
 ARG VITE_DEMO_TOKEN=demo-nao-secreto
 ENV VITE_DEMO_TOKEN=${VITE_DEMO_TOKEN}
 RUN pnpm --filter @pix-live/web run build

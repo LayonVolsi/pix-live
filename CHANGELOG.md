@@ -31,13 +31,13 @@ A partir da v1.0.0 este arquivo passa a ser mantido automaticamente por
 - Loja (`POST`/`GET /orders`) com idempotência de saída
   (`OutboundIdempotencyKey`).
 - Painel de conciliação (e-mail do pagador mascarado no backend) + seed do
-  pedido pago pré-semeado (o caminho do wow).
+  pedido pago pré-semeado (o caminho da demonstração).
 - ADRs 0001–0004 e `ARCHITECTURE.md`.
 - `apps/web` (React 18 + Vite 6 + Tailwind 3.4 + TanStack Query): loja de um
   produto, página de pagamento (QR com sanity check de base64, copia-e-cola
   acessível, contador derivado do relógio, polling de 2,5s pausado por Page
   Visibility e que para em estado final) e painel de conciliação ao vivo com
-  o replay-wow. Botões de mutação desabilitam em `isPending` (duplo-clique
+  o replay demonstrativo. Botões de mutação desabilitam em `isPending` (duplo-clique
   não duplica ação — coberto por teste). Erros HTTP viram catálogo fixo
   pt-BR; corpo cru de resposta nunca chega à UI.
 - Painel de conciliação da API expõe `id` do evento e `orderPublicRef`

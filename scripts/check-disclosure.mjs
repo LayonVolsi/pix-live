@@ -11,9 +11,20 @@
  *
  * Dois invariantes deste script, ambos cobertos por teste (check-disclosure.test.mjs):
  *   1. exit 1 quando ACHA (fail-closed). Um gate cuja polaridade não é testada não é gate.
- *   2. Casa a IDEIA, não só a palavra. O termo interno foi trocado por sinônimo e o
- *      texto seguiu dizendo "projeto descartável" e "ataca o medo nº1 do cliente" —
- *      um gate lexical daria verde nisso.
+ *   2. Casa as FORMULAÇÕES conhecidas da tese, não só o codinome — o termo foi trocado por
+ *      sinônimo uma vez e o texto seguiu dizendo "projeto descartável" e "ataca o medo nº1".
+ *
+ * O QUE ESTE GATE NÃO É (dizer o contrário seria repetir o erro que ele existe para corrigir):
+ * ele NÃO detecta a ideia. É lexical. Uma reformulação deliberada passa — "supérfluo por
+ * design", "feito para converter quem avalia", a mesma frase em inglês. Foi medido: numa
+ * bateria de 14 reformulações, 13 passaram. Portanto:
+ *
+ *   - Defesa PRIMÁRIA é a fronteira física: estratégia comercial mora FORA da árvore
+ *     publicável (~/Corp/iscas/<projeto>-POSICIONAMENTO.md). Não vaza o que não está lá.
+ *   - Este gate é a rede contra o DESCUIDO (copiar um parágrafo, herdar um título), não
+ *     contra um autor determinado a burlá-lo. Ninguém aqui está tentando se burlar.
+ *   - A camada que pega o que a regex não pega é humana, e é uma pergunta só:
+ *     "um cliente lendo isto conclui que o repo foi construído para vendê-lo a ele?"
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -34,7 +45,12 @@ export const PATTERNS = [
   { re: /kit de perfil/i, why: 'artefato interno de posicionamento' },
   { re: /trio de (iscas|projetos)/i, why: 'revela o programa de portfólio como conjunto' },
   { re: /wow hook/i, why: 'linguagem de marketing interno' },
-  { re: /avaliador t[ée]cnico/i, why: 'enquadra o leitor como avaliador a ser impressionado' },
+  // "wow" e "avaliador" isolados: mesmo enquadramento (o leitor como alguém a ser conduzido a
+  // uma reação), só que disperso. Estavam em 46 pontos de 18 arquivos — incluindo um H3 do
+  // README e o ator do threat model no SECURITY.md ("[visitante anônimo / avaliador]"): o
+  // modelo de ameaça assumia que quem lê é um avaliador a impressionar.
+  { re: /\bwow\b/i, why: 'linguagem de marketing; o leitor tratado como alvo de impressão' },
+  { re: /\bavaliador(es)?\b/i, why: 'enquadra o leitor como avaliador a ser impressionado' },
 ];
 
 /**

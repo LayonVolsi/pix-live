@@ -1,3 +1,14 @@
 # O gate de divulgação vem PRIMEIRO: é o único aqui cuja falha é irreversível depois do
 # push (conteúdo publicado sobrevive em refs/pull/* mesmo após rewrite + force-push).
-pnpm check:disclosure && pnpm typecheck && pnpm test
+#
+# Varre a ÁRVORE e as MENSAGENS DE COMMIT do range que está realmente sendo empurrado.
+# As mensagens importam tanto quanto os arquivos: elas são públicas para sempre, e um commit
+# que REMOVE a tese comercial pode reintroduzi-la ao citar o que removeu. Aconteceu aqui.
+remote_sha=$(git rev-parse "origin/$(git branch --show-current)" 2>/dev/null || echo "")
+if [ -n "$remote_sha" ]; then
+  range="$remote_sha..HEAD"
+else
+  range="HEAD" # branch nova: varre todas as mensagens dela
+fi
+
+pnpm check:disclosure "$range" && pnpm typecheck && pnpm test

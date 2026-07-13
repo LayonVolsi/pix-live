@@ -13,7 +13,7 @@ import { Injectable, Logger } from '@nestjs/common';
  * Isto NÃO é rate limit de HTTP: é um teto de quanto esta demo pode gastar contra
  * a conta de outra pessoa. Fail-closed e HONESTO: quando o orçamento acaba, a
  * demo diz que acabou. É proibido cair para o mock em silêncio — mostrar um QR
- * falso alegando sandbox real seria mentir para o avaliador.
+ * falso alegando sandbox real seria mentir para quem usa a demo.
  *
  * O webhook GENUÍNO do MP nunca é orçado: é o caminho do dinheiro, e ele já está
  * limitado a montante (o MP só nos notifica sobre cobranças que nós criamos).
@@ -81,7 +81,7 @@ export const CREATE_CHARGE_BUDGET: readonly BudgetWindow[] = [
 ];
 
 /**
- * Replay é leitura, e o caminho do wow (pedido já creditado) nem chega a consultar
+ * Replay é leitura, e o caminho da demonstração (pedido já creditado) nem chega a consultar
  * o provedor (ver `remoteLookupNeeded`). Este teto só existe para o resto: evento
  * de pagamento REJEITADO é replayável e não tem crédito — logo consulta o MP de
  * verdade, e o demo-token é público por design.

@@ -71,7 +71,7 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
     expect(order.status).toBe('paid');
   });
 
-  it('replay de um evento já processado → duplicata, crédito continua 1× (o wow)', async () => {
+  it('replay de um evento já processado → duplicata, crédito continua 1× (a demonstração)', async () => {
     await admin.simulate(publicRef);
     const processed = await prisma.webhookEvent.findFirstOrThrow({
       where: { verdict: 'processado' },
@@ -85,7 +85,7 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
   });
 
   it('replay com provider que esqueceu o pagamento (restart) → duplicata, nunca pagamento_desconhecido', async () => {
-    // O cenário do wow SEMEADO (achado da verificação Docker-on 2026-07-03):
+    // O cenário da demonstração SEMEADA (achado da verificação Docker-on 2026-07-03):
     // crédito e evento processado existem no BANCO, mas o Map em memória do
     // mock NUNCA viu ESTE pagamento (só o do fixture) — o estado de qualquer
     // processo novo da API (restart, deploy) diante do pedido plantado pelo
