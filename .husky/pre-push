@@ -4,11 +4,24 @@
 # Varre a ÁRVORE e as MENSAGENS DE COMMIT do range que está realmente sendo empurrado.
 # As mensagens importam tanto quanto os arquivos: elas são públicas para sempre, e um commit
 # que REMOVE a tese comercial pode reintroduzi-la ao citar o que removeu. Aconteceu aqui.
-remote_sha=$(git rev-parse "origin/$(git branch --show-current)" 2>/dev/null || echo "")
+# DUAS armadilhas de shell aqui, ambas descobertas ao vivo (o hook falhava em silêncio):
+#
+# 1. `--verify --quiet` é obrigatório: sem eles, `git rev-parse` numa ref inexistente ECOA o
+#    argumento cru no stdout, então a variável nunca fica vazia e o range vira lixo.
+# 2. O `|| true` é obrigatório: o husky invoca este script com `sh -e` (errexit), e
+#    `rev-parse --verify` sai com 1 quando a ref não existe — que é justamente o caso de uma
+#    branch nova. Sem o `|| true`, a ATRIBUIÇÃO aborta o hook inteiro antes de qualquer gate
+#    rodar. Falhava fechado (o push era negado), mas por engano, e um gate que trava sem
+#    explicar é um gate que alguém contorna com --no-verify na terceira vez.
+branch=$(git branch --show-current)
+remote_sha=$(git rev-parse --verify --quiet "origin/$branch" 2>/dev/null) || remote_sha=""
+
 if [ -n "$remote_sha" ]; then
   range="$remote_sha..HEAD"
 else
-  range="HEAD" # branch nova: varre todas as mensagens dela
+  # Branch nova: ainda não existe no remoto. Varre o que ela adiciona sobre a main.
+  base=$(git rev-parse --verify --quiet origin/main 2>/dev/null) || base=""
+  if [ -n "$base" ]; then range="$base..HEAD"; else range="HEAD"; fi
 fi
 
 pnpm check:disclosure "$range" && pnpm typecheck && pnpm test
