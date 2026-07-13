@@ -20,12 +20,17 @@ auditável**.
   subir** com credencial de produção do MP (exige prefixo `TEST-` — ver §7): "não processa dinheiro
   real" é um **não-objetivo permanente** (§9), não uma fase. Não há claim de "pronto para produção
   financeira".
-- **⚠️ Camada 1 no modo real: NÃO VERIFICADA EMPIRICAMENTE.** A verificação de assinatura está
-  implementada de forma correta sob as duas hipóteses de origem do `data.id` (query string ou corpo)
-  e é **fail-closed** quando as duas divergem — mas ainda **não** foi confrontada com uma notificação
-  **real** capturada do sandbox (isso exige uma URL pública). Enquanto essa captura não acontecer,
-  `PAYMENT_PROVIDER=mercadopago` **não é default em lugar nenhum** e esta ressalva permanece aqui,
-  declarada — não omitida. Ver `adr/0006`.
+- **Camada 1 no modo real: verificada empiricamente em 2026-07-12 (autenticidade + origem do
+  `data.id`); crédito ponta-a-ponta ainda pendente.** Uma notificação **real** do sandbox oficial do
+  MP foi capturada por um túnel efêmero e confrontada com o código: (1) o `data.id` chega na **query
+  string** (`?data.id=…&type=payment`) — é ela que assina o manifesto; (2) o manifesto
+  `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` re-hasheado (HMAC-SHA256) com o segredo do
+  painel reproduz **byte-a-byte** o `v1` recebido, confirmado por recomputação independente +
+  `timingSafeEqual`, e a própria API respondeu `200` (não `401`). A verificação segue **fail-closed**
+  quando query e corpo divergem. **Ainda pendente:** o crédito ponta-a-ponta (receber a notificação de
+  um pagamento efetivamente aprovado e conciliar) — depende de uma conta de teste compradora do
+  sandbox e/ou do deploy; até lá, `PAYMENT_PROVIDER=mercadopago` **não é default em lugar nenhum**.
+  Ver `adr/0006`.
 - **Escopo minúsculo, barra de produção.** O código de domínio (`packages/core`) é puro e
   determinístico, com cobertura **≥90% imposta no CI**. As garantias de segurança abaixo valem
   para o pipeline do webhook, a separação de rotas e a cadeia de suprimentos — o que ainda não
