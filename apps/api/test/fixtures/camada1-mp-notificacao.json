@@ -1,0 +1,35 @@
+{
+  "_comment": "Fixture SINTETIZADA a partir de uma notificação REAL do sandbox oficial do Mercado Pago, capturada na janela de prova da Camada 1 (2026-07-12). A ESTRUTURA é fiel ao tráfego real provado (data.id na query string; manifesto id;request-id;ts; live_mode=false), mas data.id/request-id/ts são SINTÉTICOS e a assinatura foi RE-ASSINADA com um segredo de teste. Nenhum dado real de assinatura, token ou PII. Ver adr/0006 e SECURITY.md §0.",
+  "testSecret": "test_webhook_secret_camada1_fixture",
+  "request": {
+    "method": "POST",
+    "url": "/api/v1/webhooks/mercadopago?data.id=1327891011&type=payment",
+    "query": {
+      "data.id": "1327891011",
+      "type": "payment"
+    },
+    "headers": {
+      "x-signature": "ts=1750000000,v1=586571ed9da3b30c8db28886fc7a2b04366e74fc97e318d9e6f22be1467dfbdc",
+      "x-request-id": "11111111-2222-4333-8444-555555555555",
+      "content-type": "application/json",
+      "user-agent": "restclient-node/5.3.0"
+    },
+    "body": {
+      "action": "payment.updated",
+      "api_version": "v1",
+      "data": {
+        "id": "1327891011"
+      },
+      "date_created": "2026-07-12T00:00:00Z",
+      "id": "1327891011",
+      "live_mode": false,
+      "type": "payment",
+      "user_id": 100000000
+    }
+  },
+  "expected": {
+    "canonicalDataId": "1327891011",
+    "signatureValid": true,
+    "manifest": "id:1327891011;request-id:11111111-2222-4333-8444-555555555555;ts:1750000000;"
+  }
+}
