@@ -51,7 +51,23 @@ Adapter escrito à mão sobre o `fetch` nativo do Node, sem SDK.
 
 O formato exato do manifesto assinado (`data.id` da query string, normalizado)
 está implementado de forma **correta sob as duas hipóteses** de origem do id — e
-**fail-closed** quando query e corpo divergem. Mas ele só está **verificado
-empiricamente** quando uma notificação real do sandbox for capturada (exige URL
-pública). Até lá, o `SECURITY.md` declara essa verificação como **pendente**, e
-`PAYMENT_PROVIDER=mercadopago` **não é default em lugar nenhum**.
+**fail-closed** quando query e corpo divergem.
+
+**Verificado empiricamente em 2026-07-12.** Uma notificação real do sandbox
+oficial foi capturada por um túnel efêmero e confrontada com o código:
+
+1. O `data.id` chega na **query string** (`?data.id=…&type=payment`), como o
+   adapter assume — e é ela que assina o manifesto.
+2. O manifesto `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` re-hasheado com o
+   segredo do painel reproduz **byte-a-byte** o `v1` do header `x-signature`
+   (recomputação independente + `timingSafeEqual`; a API respondeu `200`, não
+   `401`).
+
+O que **ainda não** foi provado é o **crédito ponta-a-ponta** (notificação de um
+pagamento aprovado → conciliação → `orderCredit`): criar a cobrança no sandbox
+exige uma conta de teste **compradora** válida como pagador (a tentativa com o
+pagador genérico caiu em `2034 Invalid users involved` / `4390 Payer email
+forbidden` — ver o fix de `MP_TEST_PAYER_EMAIL`). Até esse degrau fechar,
+`PAYMENT_PROVIDER=mercadopago` **não é default em lugar nenhum**. A forma exata do
+tráfego capturado virou uma fixture sintética e um teste de regressão
+(`apps/api/test/camada1-fixture.test.ts`).
