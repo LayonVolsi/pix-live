@@ -36,11 +36,11 @@ Abra o painel de conciliação: já existe ali um **pedido pago pré-semeado** c
 Integração **Pix real** de ponta a ponta com a barra de segurança e engenharia de um time grande — em escopo minúsculo, de propósito:
 
 - **Webhook assinado de verdade.** Verificação HMAC-SHA256 sobre o **corpo cru** (raw body), em **tempo constante**, remontando o manifesto exato do provedor.
-- **Integração real, não auto-simulação** (_planejado_ — entra na fase do sandbox MP): pelo menos **1 webhook REAL capturado do sandbox do Mercado Pago** (headers e payload genuínos, PII redigida) será versionado como **fixture de teste em CI** — fecha a dúvida óbvia do avaliador técnico: "isso valida contra o formato real do provedor ou só contra si mesmo?".
+- **Integração real, não auto-simulação** (_planejado_ — entra na fase do sandbox MP): pelo menos **1 webhook REAL capturado do sandbox do Mercado Pago** (headers e payload genuínos, PII redigida) será versionado como **fixture de teste em CI** — responde à dúvida óbvia de quem audita: "isso valida contra o formato real do provedor ou só contra si mesmo?".
 - **Dinheiro não duplica — garantido pelo banco.** O crédito é exatamente-uma-vez via **constraint de unicidade** em transação, sob corrida entre entregas simultâneas (`at-least-once` do provedor resolvido pelo banco, não por `if` em memória).
 - **Processo de engenharia visível.** CI com **CodeQL**, **gitleaks** e **dependency-review** desde o primeiro commit; **OpenSSF Scorecard**, **SBOM** e **scan de imagem** entram no endurecimento (roadmap declarado abaixo) — não só código, mas a cadeia de entrega levada a sério.
 
-**Contraste que vende:** escopo de brinquedo, barra de produção. Um produto fixo, um preço — a loja fictícia **Papelaria Nó de Fita** vendendo o **Kit Caderno Artesanal** por **R$ 47,00**.
+**O contraste é deliberado:** escopo pequeno, barra de produção. Um produto fixo, um preço — a loja fictícia **Papelaria Nó de Fita** vendendo o **Kit Caderno Artesanal** por **R$ 47,00**.
 
 ---
 

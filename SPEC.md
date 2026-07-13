@@ -2,7 +2,9 @@
 
 > **Checkout Pix que não duplica dinheiro: reenvie o mesmo webhook e veja, ao vivo, a idempotência bloquear a segunda entrega. A prova de que "dinheiro não some" — no idioma do cliente, não da stack.**
 
-**Vaga-alvo:** Integração de pagamentos e e-commerce no Brasil: vagas/gigs de "integrar Pix", "gateway de pagamento", "webhook de confirmação", "conciliação de pedidos". Categoria de altíssima demanda e ultra-específica do BR. Ataca o medo nº1 do cliente PME de e-commerce: cobrança duplicada, pedido pago que não credita, "sumiu dinheiro". Usar sandbox oficial do Mercado Pago dá credibilidade que um mock caseiro não dá — reforçado pela exigência de capturar pelo menos 1 webhook real do provedor como fixture de teste em CI, fechando a dúvida óbvia de um avaliador técnico ("isso é integração real ou só auto-simulação?"). Confirmada como uma das categorias de alta demanda selecionadas para o trio de projetos públicos (código de negócio fica fechado; este é um projeto descartável de escopo minúsculo com acabamento de produção).
+**Contexto:** integração de pagamento Pix no Brasil — criação de cobrança, webhook de confirmação e conciliação de pedidos. O problema que o sistema ataca é o modo de falha clássico dessa integração: cobrança duplicada, pedido pago que não credita, valor que "some" na reentrega. O provedor entrega notificações **at-least-once**; portanto a corretude do crédito não pode depender de o provedor entregar uma vez só.
+
+A escolha do sandbox oficial do Mercado Pago (em vez de um mock caseiro) é deliberada: ela permite validar a verificação de assinatura contra o **formato real do provedor**, capturando ao menos 1 webhook genuíno como fixture de teste em CI. Sem isso, a verificação passaria apenas contra payloads gerados por ela mesma — que é a diferença entre integração real e auto-simulação.
 
 ## ⚙️ Deltas do build vs spec (registro vivo — 2026-07-02)
 
@@ -14,11 +16,13 @@ O spec é o alvo desenhado e revisado adversarialmente; onde o build divergiu co
 - **Cobertura imposta hoje: core ≥90%;** o gate global ≥80% (incluindo `apps/`) entra com o `apps/web`.
 - **Fixture real do MP ainda não capturada** — depende de credenciais do sandbox (fase 4); até lá os testes de integração provam o pipeline contra Postgres real com payloads assinados de verdade.
 
-## 🎯 Wow hook (impressão em 10s)
+## 🎯 Demonstração guiada
 
-Dois caminhos pro mesmo wow, com o "10 segundos" literal e não apenas otimista. Caminho rápido: o avaliador abre o link do painel de conciliação — já encontra ali um pedido pago pré-semeado com histórico de webhook — e clica direto em "reenviar este webhook". Em poucos segundos, sem login, sem gerar nada, vê o contador daquele pedido virar "processado 1×, idempotência bloqueou 1×", o log mostrando o veredito "duplicata ignorada", e o valor sem dobrar. Caminho completo (pra quem quer ver mais): gera uma cobrança Pix real de sandbox, clica "simular confirmação" e vê o pedido virar "Pago" ao vivo (anúncio em aria-live); depois repete o replay no seu próprio pedido. É visceral e universalmente entendível ("dinheiro não duplicou"). O segundo wow — o que fisga um avaliador técnico de big tech — está a um scroll de distância: pelo menos um webhook REAL do sandbox do Mercado Pago foi capturado e vive como fixture de teste em CI (não é uma verificação que passa só contra si mesma), o crédito é garantido por constraint de banco sob corrida (não por if em memória), e o badge do OpenSSF Scorecard no topo do README diz, em um número público, que a supply chain foi levada a sério. Escopo de brinquedo, barra de produção.
+Dois caminhos exercitam a mesma propriedade central. **Caminho rápido:** abrir o painel de conciliação — já há um pedido pago pré-semeado, com histórico de webhook — e clicar em "reenviar este webhook". Sem login e sem gerar nada, o contador daquele pedido passa a "processado 1×, idempotência bloqueou 1×", o log mostra o veredito "duplicata ignorada", e o valor não dobra. **Caminho completo:** gerar uma cobrança Pix de sandbox, clicar em "simular confirmação", ver o pedido virar "Pago" ao vivo (anunciado em `aria-live`) e então repetir o replay sobre o próprio pedido.
 
-## Skills demonstradas
+O que a demonstração torna observável, e não apenas afirmável: o crédito é garantido por **constraint de unicidade no banco sob corrida** (não por um `if` em memória); a verificação de assinatura roda contra um webhook **real** capturado do sandbox, versionado como fixture de CI (não é uma verificação que passa só contra si mesma); e o badge do OpenSSF Scorecard expressa, em um número público, o cuidado com a cadeia de suprimentos. Escopo pequeno, barra de produção.
+
+## Propriedades garantidas
 
 - Integração real de pagamento Pix via sandbox oficial do Mercado Pago (criação de cobrança, QR Code PNG + copia-e-cola EMV, expiração)
 - Verificação de assinatura de webhook HMAC-SHA256 com comparação em tempo constante, validada não só contra payload auto-gerado mas contra pelo menos 1 webhook REAL capturado do sandbox do provedor (fecha a dúvida 'integração real vs. auto-simulação')
@@ -94,7 +98,7 @@ Cinco entidades em Postgres via Prisma. Product — id, slug, nome, descrição,
 - Clica 'reenviar este webhook' nesse evento (rota admin, invoca o pipeline core diretamente — não a rota pública). Contador vira 'processado 1× · idempotência bloqueou 1×'; valor não dobra.
 - Opcional para quem quiser o caminho 100% real: completar um pagamento Pix de sandbox de fato dispara um webhook genuíno do MP pelo mesmo pipeline — documentado no README, e é o cenário que a fixture de webhook real capturada durante o desenvolvimento também valida em CI.
 - Quem quer rodar local: git clone + docker compose up sobe tudo com seed (incluindo o pedido pago pré-semeado) e modo mock MP, sem precisar de conta no Mercado Pago.
-- Quem quer auditar a engenharia: o README linka os 3 ADRs, o SECURITY.md com threat model, o OpenAPI, o badge do OpenSSF Scorecard e a aba Actions com todos os checks required verdes — o segundo caminho de 'prova' pra um avaliador técnico.
+- Quem quer auditar a engenharia: o README linka os 3 ADRs, o SECURITY.md com threat model, o OpenAPI, o badge do OpenSSF Scorecard e a aba Actions com todos os checks required verdes — o segundo caminho de 'prova', para leitura técnica.
 
 ## Plano de deploy
 
@@ -213,10 +217,6 @@ README de vitrine em PT-BR com TL;DR em inglês no topo e badges (CI, cobertura,
 - Observabilidade: screenshot do painel de conciliação (com e-mail já mascarado, mostrando o hardening em ação)
 - Nota sobre onde o Postgres de produção mora e por quê (transparência sobre a decisão de persistência)
 - Licença MIT + SemVer + link do perfil (hub) e dos outros projetos
-
-## Esforço estimado
-
-Reestimado para cima em honestidade por conta da barra de excelência endurecida nesta auditoria final. Núcleo funcional (produto, Pix sandbox real, webhook com as 3 camadas, seed com pedido pago pré-semeado, rotas admin separadas com demo-token, e-mail mascarado, polling curto): ~1,5 dia. Acabamento de produção inegociável (CI com ~21 jobs incluindo teste contra fixture real do MP, teste-admin, mutation testing no core, size-limit, container-scan/hadolint/SBOM/OSV/Scorecard, actions SHA-pinned + token least-privilege, CSP no site estático, Dockerfile multi-stage non-root, API versionada + problem+json + terminus + graceful shutdown, TS strict, Husky/commitlint, a11y AA, Lighthouse, 3 ADRs, README com GIF/OG, decisão de persistência de banco resolvida, keep-warm): ~2 a 2,5 dias. Total honesto: 3,5 a 4 dias de trabalho focado. Isto NÃO é mais um projeto de 'meio expediente' — é '1-2 dias de núcleo + acabamento de produção à parte'. Contingência se ultrapassar 4,5 dias: rebaixar Lighthouse e size-limit de bloqueante para informativo na primeira iteração, e mover mutation-core/Scorecard/OSV para cron noturno em vez de gate de PR — NUNCA cortar os gates de segurança/teste core (verificação de assinatura, idempotência, corrida, fixture real do MP), a separação de rotas admin, o mascaramento de e-mail, a CSP do site estático, nem a decisão de persistência do banco. Esses são os furos que as duas rodadas de revisão fecharam e não voltam a abrir sob pressão de prazo.
 
 ## Riscos
 

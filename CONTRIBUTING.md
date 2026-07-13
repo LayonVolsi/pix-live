@@ -11,7 +11,7 @@ para fingir que já estão prontas.
 
 ## Sobre a fronteira de escopo
 
-Este repositório é **público e descartável por design**. Ele demonstra **uma** integração de
+Este repositório é **público e de escopo deliberadamente único**. Ele demonstra **uma** integração de
 pagamento com acabamento de produção. Código de negócio real do dono vive em repositórios
 fechados — isso é discrição profissional, não uma omissão. Contribuições externas não são o
 objetivo primário (é um artefato de portfólio), mas o repo segue as convenções abaixo como
