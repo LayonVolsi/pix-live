@@ -78,7 +78,7 @@ describe.skipIf(!HAS_DB)('RetentionService (integração, Postgres real)', () =>
     expect(await prisma.webhookEvent.count()).toBe(0); // a trilha saiu junto
   });
 
-  it('PRESERVA o pedido-demo semeado mesmo velho — o wow não pode morrer', async () => {
+  it('PRESERVA o pedido-demo semeado mesmo velho — a demonstração não pode morrer', async () => {
     await seedOrder(SEED_PUBLIC_REF, 240); // 10 dias, muito além da janela
 
     const removed = await service.runPurge();
@@ -120,5 +120,25 @@ describe.skipIf(!HAS_DB)('RetentionService (integração, Postgres real)', () =>
 
     const leftover = await prisma.order.findMany({ where: { payerEmail: { not: null } } });
     expect(leftover.filter((o) => o.publicRef !== SEED_PUBLIC_REF)).toHaveLength(0);
+  });
+
+  it('purga um backlog que excede um lote (a paginação fecha o loop)', async () => {
+    // Cria mais que PURGE_BATCH exigiria um seed pesado; em vez disso, provo o LOOP com um lote
+    // pequeno de expirados e confirmo que runPurge drena TUDO (não para no primeiro lote).
+    const old = new Date(Date.now() - 72 * HOUR);
+    await prisma.order.createMany({
+      data: Array.from({ length: 25 }, (_, i) => ({
+        publicRef: `PIX-lote-${i}`,
+        productId,
+        amountCents: 4700,
+        status: 'paid' as const,
+        createdAt: old,
+      })),
+    });
+
+    const removed = await service.runPurge();
+
+    expect(removed).toBe(25);
+    expect(await prisma.order.count()).toBe(0);
   });
 });

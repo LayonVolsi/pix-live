@@ -101,6 +101,9 @@ model Order {
   webhookEvents  WebhookEvent[]
 
   @@index([status])
+  // A purga de retenção filtra por `createdAt < cutoff` de hora em hora; sem índice seria scan
+  // sequencial da tabela inteira, piorando conforme a demo acumula pedidos.
+  @@index([createdAt])
   @@map("orders")
 }
 

@@ -388,14 +388,28 @@ Para não haver overclaim, estes vetores estão **conscientemente fora** do mode
   (10/min nas rotas `/admin`) e o replay ser fail-closed (só eventos `processado`).
 - **Retenção da demo (`DEMO_RETENTION_HOURS`, default 48h).** Um serviço agendado
   (`RetentionService`, `@Interval` de hora em hora) purga pedidos gerados por **visitante** mais
-  velhos que a janela, com toda a sua trilha de `webhook_events` — numa transação, filhos antes do
-  pai (as relações não têm `onDelete: Cascade`). O pedido-demo semeado (`PIX-demopaga`) é
-  **preservado sempre**, e a trilha dele também (só apagamos eventos ligados aos pedidos que saem,
-  ou órfãos antigos, nunca por idade global — senão o caminho rápido da demonstração morreria). Isso
-  fecha dois riscos que só existem numa vitrine pública e persistente: `webhook_events` (corpo cru
-  em TEXT) crescendo sem teto sob abuso distribuído, e o `payerEmail` do modo real ficando retido
-  indefinidamente. A premissa antiga ("não há PII real em jogo, expurgo entra no deploy") deixou de
-  valer no momento de publicar — por isso a janela agora existe em código, não em intenção.
+  velhos que a janela, com sua trilha de `webhook_events`. Os pedidos saem em lotes (transação
+  curta por lote; eventos órfãos num DELETE direto) para não estourar o timeout do Prisma sob
+  backlog grande. `orders.createdAt` é indexado por causa desse filtro horário. O pedido-demo
+  semeado (`PIX-demopaga`) e a trilha dele são **preservados sempre** (só apagamos eventos ligados
+  aos pedidos que saem, ou órfãos antigos — nunca por idade global, senão o caminho rápido da
+  demonstração morreria). O que a janela **fecha**: pedidos/trilha de **visitante** crescendo sem
+  teto numa vitrine pública. O que ela **não** fecha, conscientemente:
+  - **A trilha do pedido-demo semeado.** Como o seed é imortal, o replay público (10/min por IP,
+    `DEMO_TOKEN` não-secreto no bundle) acumula `webhook_events` ligados a ele que a purga não
+    toca. O dado é **sintético** (não é PII de visitante — o `rawBody` do replay é fabricado do
+    `mpPaymentId` do seed), então o risco é crescimento de tabela, não vazamento. Um teto de N
+    linhas mais recentes da trilha do seed é decisão de produto — diferido para a fase de deploy.
+  - **`Order.payerEmail`.** Hoje **nenhum fluxo de runtime grava e-mail de visitante** — só o seed
+    (e-mail sintético, `cliente.demo@exemplo.com`). A purga protege o campo caso um dia passe a
+    ser preenchido; não há PII de visitante retida hoje a remediar. Retenção por idade **não** é
+    mecanismo de exclusão a pedido do titular (LGPD art. 18) — gap consciente de uma demo.
+  - **Concorrência da purga.** O purge não usa lock de líder: assume **instância única** (mesma
+    premissa do `OutboundBudgetService` in-process, §5). Duas réplicas não corrompem dado (os
+    `deleteMany` são idempotentes), mas podem competir por lock de linha; e uma escrita concorrente
+    num pedido do lote (replay/simulate perto da janela) pode abortar aquele lote por violação de
+    FK `RESTRICT` — autorrecuperável (rollback + retomada na próxima janela), não corrompe. **O
+    `render.yaml` da fase de deploy deve fixar instância única (sem autoscale).**
 - **O `qrEmv` do adapter mock embute o id interno do pedido** (`MOCK-PIX|...|order=<uuid>|...`) e
   ele aparece na página pública de pagamento em modo mock. Risco aceito: o mock é **proibido em
   produção** pelo gate de env (Zod), o id não destrava nenhuma ação (as rotas admin usam
