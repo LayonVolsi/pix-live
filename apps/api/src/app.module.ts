@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AdminModule } from './admin/admin.module.js';
@@ -11,6 +12,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { PaymentModule } from './payment/payment.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReconciliationModule } from './reconciliation/reconciliation.module.js';
+import { RetentionModule } from './retention/retention.module.js';
 import { WebhookModule } from './webhook/webhook.module.js';
 import { ConfigController } from './config/config.controller.js';
 import { validateEnv } from './config/env.config.js';
@@ -50,11 +52,13 @@ const isDevelopment = process.env['NODE_ENV'] === 'development';
     // próprios mais agressivos via @Throttle. Depende de `trust proxy` correto
     // (main.ts) para o IP ser real atrás do LB — senão é decorativo (laudo).
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ScheduleModule.forRoot(),
     PrismaModule,
     PaymentModule,
     HealthModule,
     WebhookModule,
     AdminModule,
+    RetentionModule,
     OrdersModule,
     ReconciliationModule,
   ],
