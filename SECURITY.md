@@ -386,10 +386,16 @@ Para não haver overclaim, estes vetores estão **conscientemente fora** do mode
   "pagar" ou reenviar o webhook de **qualquer** pedido listado, não só o seu. É intencional numa
   demo de observabilidade pública sem dono de pedido; o freio real é o rate-limit por rota+IP
   (10/min nas rotas `/admin`) e o replay ser fail-closed (só eventos `processado`).
-- **`webhook_events` cresce sem cota agregada nem TTL** — o rate-limit é por IP; abuso distribuído
-  e sustentado das ações de demo acumula linhas de auditoria sem teto (o painel só exibe as 100
-  mais recentes). Risco aceito: não há dinheiro nem PII real em jogo; expurgo/cota entram na fase
-  de deploy se o comportamento real justificar.
+- **Retenção da demo (`DEMO_RETENTION_HOURS`, default 48h).** Um serviço agendado
+  (`RetentionService`, `@Interval` de hora em hora) purga pedidos gerados por **visitante** mais
+  velhos que a janela, com toda a sua trilha de `webhook_events` — numa transação, filhos antes do
+  pai (as relações não têm `onDelete: Cascade`). O pedido-demo semeado (`PIX-demopaga`) é
+  **preservado sempre**, e a trilha dele também (só apagamos eventos ligados aos pedidos que saem,
+  ou órfãos antigos, nunca por idade global — senão o caminho rápido da demonstração morreria). Isso
+  fecha dois riscos que só existem numa vitrine pública e persistente: `webhook_events` (corpo cru
+  em TEXT) crescendo sem teto sob abuso distribuído, e o `payerEmail` do modo real ficando retido
+  indefinidamente. A premissa antiga ("não há PII real em jogo, expurgo entra no deploy") deixou de
+  valer no momento de publicar — por isso a janela agora existe em código, não em intenção.
 - **O `qrEmv` do adapter mock embute o id interno do pedido** (`MOCK-PIX|...|order=<uuid>|...`) e
   ele aparece na página pública de pagamento em modo mock. Risco aceito: o mock é **proibido em
   produção** pelo gate de env (Zod), o id não destrava nenhuma ação (as rotas admin usam

@@ -27,6 +27,12 @@ const EnvSchema = z
     // Segundos que uma query espera por uma conexão livre antes de falhar. Falhar rápido e
     // alto é melhor que empilhar requests numa fila invisível até o timeout do LB.
     DATABASE_POOL_TIMEOUT: z.coerce.number().int().nonnegative().max(60).default(10),
+    // Janela de retenção da demo: pedidos gerados por VISITANTE mais velhos que isto são
+    // purgados (com sua trilha de webhook). O pedido-demo semeado é preservado, sempre. Numa
+    // vitrine pública e persistente, `webhook_events` cresceria sem teto (o corpo cru é TEXT)
+    // e o `payerEmail` do modo real ficaria retido indefinidamente — os dois viram bloqueio de
+    // deploy sem uma janela. 48h cobre qualquer avaliação real e mantém o banco enxuto.
+    DEMO_RETENTION_HOURS: z.coerce.number().int().positive().max(8760).default(48),
     PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
     // Consentimento EXPLÍCITO para rodar com provedor falso. Fail-closed (default false):
     // o mock só entra se alguém pedir por escrito, em qualquer NODE_ENV.
