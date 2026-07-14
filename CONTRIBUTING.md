@@ -11,7 +11,7 @@ para fingir que já estão prontas.
 
 ## Sobre a fronteira de escopo
 
-Este repositório é **público e descartável por design**. Ele demonstra **uma** integração de
+Este repositório é **público e de escopo deliberadamente único**. Ele demonstra **uma** integração de
 pagamento com acabamento de produção. Código de negócio real do dono vive em repositórios
 fechados — isso é discrição profissional, não uma omissão. Contribuições externas não são o
 objetivo primário (é um artefato de portfólio), mas o repo segue as convenções abaixo como
@@ -21,11 +21,11 @@ se fosse um produto de time, de propósito.
 
 Monorepo com **pnpm workspaces** (`pnpm-workspace.yaml`: `packages/*` e `apps/*`).
 
-| Pacote          | Estado     | O que é                                                                                                                        |
-| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/core` | **pronto** | Domínio puro em TS: HMAC, idempotência, máquina de estados, money. Sem framework, cobertura ≥90% imposta.                      |
-| `apps/api`      | **pronto** | API NestJS completa (webhook 3 camadas, rotas admin, loja, painel, Prisma/Postgres), provada por integração com Postgres real. |
-| `apps/web`      | **pronto** | Front React + Vite completo (loja, página de pagamento com QR, painel de conciliação com replay-wow), testes de componente.    |
+| Pacote          | Estado     | O que é                                                                                                                               |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core` | **pronto** | Domínio puro em TS: HMAC, idempotência, máquina de estados, money. Sem framework, cobertura ≥90% imposta.                             |
+| `apps/api`      | **pronto** | API NestJS completa (webhook 3 camadas, rotas admin, loja, painel, Prisma/Postgres), provada por integração com Postgres real.        |
+| `apps/web`      | **pronto** | Front React + Vite completo (loja, página de pagamento com QR, painel de conciliação com replay demonstrativo), testes de componente. |
 
 O fluxo full-stack local (`docker compose up`) está **pronto e verificado** (Dockerfiles
 multi-stage non-root, bases pinadas por digest, hadolint/Trivy limpos). O e2e (Playwright)
@@ -84,7 +84,7 @@ A **API** roda contra qualquer Postgres local (sem Docker):
 ```bash
 cd apps/api
 DATABASE_URL="postgresql://..." pnpm run db:migrate   # prisma migrate deploy
-DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia produto + pedido pago do wow
+DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia produto + pedido pago da demonstração
 cd ../..
 pnpm build && node apps/api/dist/main.js              # lê o .env da raiz
 ```

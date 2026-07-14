@@ -2,7 +2,13 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['packages/**/test/**/*.test.ts', 'apps/**/test/**/*.test.{ts,tsx}'],
+    include: [
+      'packages/**/test/**/*.test.ts',
+      'apps/**/test/**/*.test.{ts,tsx}',
+      // O gate de divulgação e seu teste vivem fora de apps/packages: o gate protege a
+      // árvore publicável inteira, não um pacote. O teste trava a polaridade do exit code.
+      'scripts/**/*.test.mjs',
+    ],
     // Os testes de integração compartilham UM Postgres; rodar arquivos em paralelo
     // faria os beforeEach (limpa/cria) se atropelarem (viola FK). Serializa os
     // arquivos — a suíte é pequena, o custo é irrelevante.

@@ -37,7 +37,7 @@ auditável**.
   existe está marcado como _planejado_.
 - **O que esta demo NÃO tenta defender** (não-objetivos declarados — ver §9): não há autenticação de
   usuário final, não há proteção de dados financeiros reais, e as ações administrativas são
-  protegidas por um token **explicitamente não-secreto** para dar fricção zero ao avaliador. Isso é
+  protegidas por um token **explicitamente não-secreto** para dar fricção zero ao visitante. Isso é
   uma decisão consciente de produto de demonstração, não uma omissão.
 
 ---
@@ -64,7 +64,7 @@ auditável**.
 > provedor**, protegida pelo orçamento de chamadas de saída (§5).
 
 ```
-[ visitante anônimo / avaliador ]
+[ visitante anônimo ]
         │  (não confiável)
         ▼
 ┌─────────────────────────────────────────────┐
@@ -100,7 +100,7 @@ auditável**.
 
 **Atores:**
 
-- **Visitante anônimo / avaliador** — não confiável. Pode ler o painel público e disparar as ações
+- **Visitante anônimo** — não confiável. Pode ler o painel público e disparar as ações
   admin (por design, com o demo-token pré-anexado). Não pode forjar um webhook válido nem relaxar a
   Camada 2.
 - **Mercado Pago (sandbox)** — semi-confiável. Prova de autenticidade é o HMAC, não a origem IP.
@@ -239,10 +239,10 @@ processo, não a **quota de um terceiro** — e um atacante com IPs rotativos pa
 
 - **Criar cobrança:** teto de **30/hora + 200/dia** (a janela curta contém a rajada, a longa contém a
   maratona). Esgotado → **503 com mensagem nossa**. É **proibido degradar para o mock em silêncio**:
-  exibir um QR falso alegando sandbox real seria mentir para o avaliador — pior que a
+  exibir um QR falso alegando sandbox real seria mentir para quem usa a demo — pior que a
   indisponibilidade.
 - **Replay:** teto de **5/min**, consumido **só quando a consulta ao provedor vai realmente
-  acontecer**. O caminho do wow (replay de pedido já creditado) **não consulta o provedor** — o
+  acontecer**. O caminho da demonstração (replay de pedido já creditado) **não consulta o provedor** — o
   crédito no banco já decide o veredito (invariante `remoteLookupNeeded`, provada por teste exaustivo
   no `packages/core`).
 - **O webhook genuíno do MP NUNCA é orçado.** É o caminho do dinheiro, e já vem limitado a montante
@@ -252,7 +252,7 @@ processo, não a **quota de um terceiro** — e um atacante com IPs rotativos pa
   distribuído entraria junto com a necessidade de escalar horizontalmente.
 - **Demo-token NÃO-secreto** (`DEMO_TOKEN`, ex.: `demo-nao-secreto`). Quando o front existir
   (_planejado_), será pré-anexado por ele e **rotulado na UI** como "token de demonstração pública,
-  não é credencial real". Ele existe para dar fricção zero ao avaliador **e** para manter uma
+  não é credencial real". Ele existe para dar fricção zero ao visitante **e** para manter uma
   separação de rota limpa — não para fingir segredo. **Isso é intencional e documentado**, não um
   segredo vazado.
 - **Rate limit estratificado por rota, com números:** global 120/min, webhook 30/min, criação de

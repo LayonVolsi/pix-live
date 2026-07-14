@@ -39,7 +39,7 @@ describe('decideVerdict', () => {
   });
 
   it('crédito existente com pedido desconhecido → duplicata_ignorada (provider pós-restart)', () => {
-    // O cenário do wow semeado: OrderCredit persiste no banco, mas o provider
+    // O cenário da demonstração semeado: OrderCredit persiste no banco, mas o provider
     // (mock em memória) reiniciou e não conhece o pagamento. O ledger vence —
     // achado da verificação Docker-on de 2026-07-03.
     expect(decideVerdict({ ...OK, creditAlreadyExists: true, orderKnown: false })).toBe(

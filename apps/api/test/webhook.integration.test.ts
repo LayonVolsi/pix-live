@@ -8,6 +8,7 @@ import {
   REPLAY_LOOKUP_BUDGET,
 } from '../src/payment/outbound-budget.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { makeTestPrisma } from './helpers/test-prisma.js';
 import { WebhookService } from '../src/webhook/webhook.service.js';
 import type { WebhookInput } from '../src/webhook/webhook.service.js';
 import type {
@@ -110,7 +111,7 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
   } as unknown as ConfigService;
 
   beforeAll(async () => {
-    prisma = new PrismaService();
+    prisma = makeTestPrisma();
     await prisma.$connect();
   });
 

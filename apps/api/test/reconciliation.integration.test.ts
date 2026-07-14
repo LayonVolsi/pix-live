@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { makeTestPrisma } from './helpers/test-prisma.js';
 import { ReconciliationService } from '../src/reconciliation/reconciliation.service.js';
 
 const HAS_DB =
@@ -10,7 +11,7 @@ describe.skipIf(!HAS_DB)('ReconciliationService (integração, Postgres real)', 
   let service: ReconciliationService;
 
   beforeAll(async () => {
-    prisma = new PrismaService();
+    prisma = makeTestPrisma();
     await prisma.$connect();
   });
 
@@ -40,7 +41,7 @@ describe.skipIf(!HAS_DB)('ReconciliationService (integração, Postgres real)', 
         paidAt: new Date(),
       },
     });
-    // Um evento processado + um bloqueado (o wow: processado 1× · bloqueado 1×).
+    // Um evento processado + um bloqueado (a demonstração: processado 1× · bloqueado 1×).
     await prisma.webhookEvent.createMany({
       data: [
         {

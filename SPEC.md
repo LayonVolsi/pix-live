@@ -2,7 +2,9 @@
 
 > **Checkout Pix que não duplica dinheiro: reenvie o mesmo webhook e veja, ao vivo, a idempotência bloquear a segunda entrega. A prova de que "dinheiro não some" — no idioma do cliente, não da stack.**
 
-**Vaga-alvo:** Integração de pagamentos e e-commerce no Brasil: vagas/gigs de "integrar Pix", "gateway de pagamento", "webhook de confirmação", "conciliação de pedidos". Categoria de altíssima demanda e ultra-específica do BR. Ataca o medo nº1 do cliente PME de e-commerce: cobrança duplicada, pedido pago que não credita, "sumiu dinheiro". Usar sandbox oficial do Mercado Pago dá credibilidade que um mock caseiro não dá — reforçado pela exigência de capturar pelo menos 1 webhook real do provedor como fixture de teste em CI, fechando a dúvida óbvia de um avaliador técnico ("isso é integração real ou só auto-simulação?"). Confirmada como uma das categorias de alta demanda selecionadas para o trio de projetos públicos (código de negócio fica fechado; este é um projeto descartável de escopo minúsculo com acabamento de produção).
+**Contexto:** integração de pagamento Pix no Brasil — criação de cobrança, webhook de confirmação e conciliação de pedidos. O problema que o sistema ataca é o modo de falha clássico dessa integração: cobrança duplicada, pedido pago que não credita, valor que "some" na reentrega. O provedor entrega notificações **at-least-once**; portanto a corretude do crédito não pode depender de o provedor entregar uma vez só.
+
+A escolha do sandbox oficial do Mercado Pago (em vez de um mock caseiro) é deliberada: ela permite validar a verificação de assinatura contra o **formato real do provedor**, capturando ao menos 1 webhook genuíno como fixture de teste em CI. Sem isso, a verificação passaria apenas contra payloads gerados por ela mesma — que é a diferença entre integração real e auto-simulação.
 
 ## ⚙️ Deltas do build vs spec (registro vivo — 2026-07-02)
 
@@ -14,11 +16,13 @@ O spec é o alvo desenhado e revisado adversarialmente; onde o build divergiu co
 - **Cobertura imposta hoje: core ≥90%;** o gate global ≥80% (incluindo `apps/`) entra com o `apps/web`.
 - **Fixture real do MP ainda não capturada** — depende de credenciais do sandbox (fase 4); até lá os testes de integração provam o pipeline contra Postgres real com payloads assinados de verdade.
 
-## 🎯 Wow hook (impressão em 10s)
+## 🎯 Demonstração guiada
 
-Dois caminhos pro mesmo wow, com o "10 segundos" literal e não apenas otimista. Caminho rápido: o avaliador abre o link do painel de conciliação — já encontra ali um pedido pago pré-semeado com histórico de webhook — e clica direto em "reenviar este webhook". Em poucos segundos, sem login, sem gerar nada, vê o contador daquele pedido virar "processado 1×, idempotência bloqueou 1×", o log mostrando o veredito "duplicata ignorada", e o valor sem dobrar. Caminho completo (pra quem quer ver mais): gera uma cobrança Pix real de sandbox, clica "simular confirmação" e vê o pedido virar "Pago" ao vivo (anúncio em aria-live); depois repete o replay no seu próprio pedido. É visceral e universalmente entendível ("dinheiro não duplicou"). O segundo wow — o que fisga um avaliador técnico de big tech — está a um scroll de distância: pelo menos um webhook REAL do sandbox do Mercado Pago foi capturado e vive como fixture de teste em CI (não é uma verificação que passa só contra si mesma), o crédito é garantido por constraint de banco sob corrida (não por if em memória), e o badge do OpenSSF Scorecard no topo do README diz, em um número público, que a supply chain foi levada a sério. Escopo de brinquedo, barra de produção.
+Dois caminhos exercitam a mesma propriedade central. **Caminho rápido:** abrir o painel de conciliação — já há um pedido pago pré-semeado, com histórico de webhook — e clicar em "reenviar este webhook". Sem login e sem gerar nada, o contador daquele pedido passa a "processado 1×, idempotência bloqueou 1×", o log mostra o veredito "duplicata ignorada", e o valor não dobra. **Caminho completo:** gerar uma cobrança Pix de sandbox, clicar em "simular confirmação", ver o pedido virar "Pago" ao vivo (anunciado em `aria-live`) e então repetir o replay sobre o próprio pedido.
 
-## Skills demonstradas
+O que a demonstração torna observável, e não apenas afirmável: o crédito é garantido por **constraint de unicidade no banco sob corrida** (não por um `if` em memória); a verificação de assinatura roda contra um webhook **real** capturado do sandbox, versionado como fixture de CI (não é uma verificação que passa só contra si mesma); e o badge do OpenSSF Scorecard expressa, em um número público, o cuidado com a cadeia de suprimentos. Escopo pequeno, barra de produção.
+
+## Propriedades garantidas
 
 - Integração real de pagamento Pix via sandbox oficial do Mercado Pago (criação de cobrança, QR Code PNG + copia-e-cola EMV, expiração)
 - Verificação de assinatura de webhook HMAC-SHA256 com comparação em tempo constante, validada não só contra payload auto-gerado mas contra pelo menos 1 webhook REAL capturado do sandbox do provedor (fecha a dúvida 'integração real vs. auto-simulação')
@@ -37,9 +41,9 @@ Dois caminhos pro mesmo wow, com o "10 segundos" literal e não apenas otimista.
 - Página de pagamento com QR, copiar copia-e-cola, contador de expiração e badge de status que vira 'Pago' via polling curto (2-3s, pausado quando a aba perde foco via Page Visibility API)
 - Endpoint público de webhook que captura o corpo cru, valida assinatura HMAC-SHA256 em tempo constante e processa de forma idempotente — SEM aceitar nenhuma flag de relaxamento de segurança vinda do cliente, com cap de tamanho de corpo e Content-Type validado
 - Painel de conciliação PÚBLICO por design (leitura): lista de pedidos e log de webhooks com veredito/validade de assinatura/latência — e-mail do pagador MASCARADO na resposta da API (mascaramento no backend, nunca só CSS), fechando exposição de PII a visitante anônimo
-- Rotas administrativas SEPARADAS (não a rota pública de webhook) para 'simular confirmação' e 'reenviar webhook', protegidas por demo-token não-secreto pré-anexado pelo front (zero fricção pro avaliador) e rate-limited mais agressivamente que o resto da API
-- Um pedido JÁ PAGO pré-semeado no seed, com histórico de webhook, para o avaliador alcançar o wow (replay → contador) em <10s direto pelo link do painel, sem precisar gerar seu próprio pedido primeiro
-- Botão 'reenviar este webhook' (a feature-wow), implementado como invocação em processo do pipeline core (não como novo POST à rota pública) — mostra a idempotência atuando sem reabrir a Camada 2 a um vetor de forjamento
+- Rotas administrativas SEPARADAS (não a rota pública de webhook) para 'simular confirmação' e 'reenviar webhook', protegidas por demo-token não-secreto pré-anexado pelo front (zero fricção pro visitante) e rate-limited mais agressivamente que o resto da API
+- Um pedido JÁ PAGO pré-semeado no seed, com histórico de webhook, para o visitante alcançar a demonstração (replay → contador) em <10s direto pelo link do painel, sem precisar gerar seu próprio pedido primeiro
+- Botão 'reenviar este webhook' (a funcionalidade central), implementado como invocação em processo do pipeline core (não como novo POST à rota pública) — mostra a idempotência atuando sem reabrir a Camada 2 a um vetor de forjamento
 - Pelo menos 1 webhook real do sandbox do MP capturado durante o desenvolvimento e usado como fixture de teste (PII redigida) — prova documentada de integração real, não só auto-simulação
 - Modo 'mock MP' para rodar 100% offline (docker compose up e CI, sem conta no Mercado Pago)
 - Banner permanente: 'Demo sandbox — não processa dinheiro real'
@@ -80,21 +84,21 @@ REVISÃO ADVERSARIAL (rodada anterior) + AUDITORIA FINAL DE EXCELÊNCIA (esta ro
 
 ## Modelo de dados
 
-Cinco entidades em Postgres via Prisma. Product — id, slug, nome, descrição, amount_cents (inteiro), currency ('BRL'), active. Seed: 'Kit Caderno Artesanal', R$ 47,00.\n\nOrder — id, public_ref, product_id, amount_cents, currency, status (enum cobrindo TODOS os status que o MP pode reportar: draft → pending → paid | rejected | cancelled | expired; in_process não muda o status do pedido, só gera registro de log), payer_email (armazenado cru no banco para fins operacionais, mas MASCARADO na resposta da API que alimenta a view pública — mascaramento é responsabilidade do backend, não do CSS), mp_payment_id (nullable, único quando presente), qr_emv, qr_png_base64, pix_expires_at, created_at, updated_at, paid_at (nullable). Transições validadas pela máquina de estados do core.\n\nOutboundIdempotencyKey — key (PK = id do pedido), order_id, provider_response_snapshot (jsonb), created_at. Único por key.\n\nWebhookEvent (trilha de auditoria) — id, received_at, source (enum: mercadopago | admin-replay — 'admin-replay' só é gravado por chamada em processo vinda da rota /admin autenticada, nunca por valor aceito da rota pública), signature_header, request_id_header, ts_from_signature, signature_valid (bool), verdict (enum: processado | duplicata_ignorada | assinatura_invalida | ts_suspeito | pagamento_desconhecido | erro), mp_payment_id (nullable), related_order_id (nullable FK), processing_ms, raw_body, error (nullable, sem PII/segredo). Índice único parcial em request_id_header para source=mercadopago. Uma linha de seed: pelo menos um WebhookEvent real capturado do sandbox do MP (fixture, PII redigida), referenciado também pela suíte de teste.\n\nOrderCredit — id, order_id, mp_payment_id, amount_cents, credited_at. Constraint de unicidade em mp_payment_id — núcleo do 'dinheiro não duplica'.\n\nSeed: 1 Order já em status 'paid' com OrderCredit e WebhookEvent(s) associados, para o caminho rápido do wow. Contadores do painel derivados por agregação de verdicts, nunca campo mutável solto.
+Cinco entidades em Postgres via Prisma. Product — id, slug, nome, descrição, amount_cents (inteiro), currency ('BRL'), active. Seed: 'Kit Caderno Artesanal', R$ 47,00.\n\nOrder — id, public_ref, product_id, amount_cents, currency, status (enum cobrindo TODOS os status que o MP pode reportar: draft → pending → paid | rejected | cancelled | expired; in_process não muda o status do pedido, só gera registro de log), payer_email (armazenado cru no banco para fins operacionais, mas MASCARADO na resposta da API que alimenta a view pública — mascaramento é responsabilidade do backend, não do CSS), mp_payment_id (nullable, único quando presente), qr_emv, qr_png_base64, pix_expires_at, created_at, updated_at, paid_at (nullable). Transições validadas pela máquina de estados do core.\n\nOutboundIdempotencyKey — key (PK = id do pedido), order_id, provider_response_snapshot (jsonb), created_at. Único por key.\n\nWebhookEvent (trilha de auditoria) — id, received_at, source (enum: mercadopago | admin-replay — 'admin-replay' só é gravado por chamada em processo vinda da rota /admin autenticada, nunca por valor aceito da rota pública), signature_header, request_id_header, ts_from_signature, signature_valid (bool), verdict (enum: processado | duplicata_ignorada | assinatura_invalida | ts_suspeito | pagamento_desconhecido | erro), mp_payment_id (nullable), related_order_id (nullable FK), processing_ms, raw_body, error (nullable, sem PII/segredo). Índice único parcial em request_id_header para source=mercadopago. Uma linha de seed: pelo menos um WebhookEvent real capturado do sandbox do MP (fixture, PII redigida), referenciado também pela suíte de teste.\n\nOrderCredit — id, order_id, mp_payment_id, amount_cents, credited_at. Constraint de unicidade em mp_payment_id — núcleo do 'dinheiro não duplica'.\n\nSeed: 1 Order já em status 'paid' com OrderCredit e WebhookEvent(s) associados, para o caminho rápido da demonstração. Contadores do painel derivados por agregação de verdicts, nunca campo mutável solto.
 
 ## Fluxo do usuário
 
-- O avaliador abre o link do demo (topo do README, apontando de preferência ao painel de conciliação). Pode ir direto ao painel — acha lá um pedido JÁ PAGO pré-semeado com histórico de webhook — ou seguir o caminho completo abaixo.
-- CAMINHO RÁPIDO (<10s reais): no painel, clica 'reenviar este webhook' no pedido pré-semeado. Em segundos vê o contador virar 'processado 1× · idempotência bloqueou 1×', o novo log com veredito 'duplicata_ignorada', e o valor do pedido NÃO dobra. É o wow completo, sem precisar gerar nada.
+- O visitante abre o link do demo (topo do README, apontando de preferência ao painel de conciliação). Pode ir direto ao painel — acha lá um pedido JÁ PAGO pré-semeado com histórico de webhook — ou seguir o caminho completo abaixo.
+- CAMINHO RÁPIDO (<10s reais): no painel, clica 'reenviar este webhook' no pedido pré-semeado. Em segundos vê o contador virar 'processado 1× · idempotência bloqueou 1×', o novo log com veredito 'duplicata_ignorada', e o valor do pedido NÃO dobra. É a demonstração completo, sem precisar gerar nada.
 - CAMINHO COMPLETO (opcional): vê o produto único (Kit Caderno Artesanal, R$ 47,00) na loja 'Papelaria Nó de Fita', com o banner 'Demo sandbox — não processa dinheiro real' visível, e clica 'Pagar com Pix'.
-- A API cria o pedido (pending) e chama o Mercado Pago sandbox com X-Idempotency-Key; o avaliador vê o QR Code, o copia-e-cola e o contador de expiração. Status: 'Aguardando pagamento'.
+- A API cria o pedido (pending) e chama o Mercado Pago sandbox com X-Idempotency-Key; o visitante vê o QR Code, o copia-e-cola e o contador de expiração. Status: 'Aguardando pagamento'.
 - Clica 'Simular confirmação (sandbox)' — rota admin dedicada, com demo-token anexado automaticamente pelo front. Isso emite um webhook corretamente assinado (server-side, o secret nunca toca o browser) ao endpoint público real.
 - A verificação HMAC passa, o crédito idempotente ocorre, e o badge vira 'Pago' em poucos segundos via polling curto, com anúncio em aria-live.
 - Abre o painel de conciliação, vê o novo pedido e o log de webhooks com veredito 'processado', assinatura válida, e-mail mascarado e latência em ms.
 - Clica 'reenviar este webhook' nesse evento (rota admin, invoca o pipeline core diretamente — não a rota pública). Contador vira 'processado 1× · idempotência bloqueou 1×'; valor não dobra.
 - Opcional para quem quiser o caminho 100% real: completar um pagamento Pix de sandbox de fato dispara um webhook genuíno do MP pelo mesmo pipeline — documentado no README, e é o cenário que a fixture de webhook real capturada durante o desenvolvimento também valida em CI.
 - Quem quer rodar local: git clone + docker compose up sobe tudo com seed (incluindo o pedido pago pré-semeado) e modo mock MP, sem precisar de conta no Mercado Pago.
-- Quem quer auditar a engenharia: o README linka os 3 ADRs, o SECURITY.md com threat model, o OpenAPI, o badge do OpenSSF Scorecard e a aba Actions com todos os checks required verdes — o segundo caminho de 'prova' pra um avaliador técnico.
+- Quem quer auditar a engenharia: o README linka os 3 ADRs, o SECURITY.md com threat model, o OpenAPI, o badge do OpenSSF Scorecard e a aba Actions com todos os checks required verdes — o segundo caminho de 'prova', para leitura técnica.
 
 ## Plano de deploy
 
@@ -184,14 +188,14 @@ README de vitrine em PT-BR com TL;DR em inglês no topo e badges (CI, cobertura,
 - SBOM CycloneDX gerado e anexado ao release; OSV-Scanner e dependency-review limpos; Renovate ativo + Dependabot alerts de segurança; zero vuln high/critical
 - Commits assinados (verificados) e branch protection ativa em main: PR obrigatório, checks required strict/up-to-date, linear history, conversation resolution, sem force-push/deleção, inclui administradores, CODEOWNERS
 - Decisão de persistência do Postgres em produção tomada e documentada no README/planoDeploy — NÃO depender silenciosamente de um free tier com expiração automática de dados
-- Seed inclui 1 pedido já pago com histórico de webhook, para o wow ser alcançável em <10s direto pelo link do painel, sem o avaliador gerar nada
+- Seed inclui 1 pedido já pago com histórico de webhook, para a demonstração ser alcançável em <10s direto pelo link do painel, sem o visitante gerar nada
 - Demo AO VIVO no ar respondendo em <3s (keep-warm ativo contra /health/ready); link no topo do README abre funcionando
 - docker compose up sobe API+Postgres+web local com seed realista em modo mock MP, em um comando, offline
 - Zero segredo no repo e no history (gitleaks + CodeQL + secret scanning push protection limpos); .env.example presente e completo
 - Verificação de assinatura, anti-replay (janela generosa, política de sinal documentada), rate limit (webhook, criação de pedido E rotas admin), body-size cap no webhook e security headers ativos e cobertos por teste
 - Lighthouse: performance ≥90 e a11y ≥95 (budget.json versionado); size-limit dentro do orçamento; axe sem violações críticas; navegável 100% por teclado; contraste AA
 - API versionada (/api/v1), contrato de erro problem+json (RFC 9457), health/live + health/ready via terminus e graceful shutdown (SIGTERM) implementados e verificados
-- README com badges (incl. Scorecard), GIF do wow, link do demo, disclaimer sandbox, 'rode em 30s', LICENSE MIT, tag SemVer v1.0.0
+- README com badges (incl. Scorecard), GIF da demonstração, link do demo, disclaimer sandbox, 'rode em 30s', LICENSE MIT, tag SemVer v1.0.0
 - 3 ADRs, ARCHITECTURE.md, SECURITY.md, CONTRIBUTING.md e OpenAPI publicados; PR/issue templates, CODEOWNERS, .editorconfig, .node-version, .gitattributes presentes
 - Healthcheck verde; logs estruturados JSON sem PII/segredo; correlação por request-id ponta a ponta
 
@@ -200,7 +204,7 @@ README de vitrine em PT-BR com TL;DR em inglês no topo e badges (CI, cobertura,
 - TL;DR em inglês (1 frase) + título e one-liner em PT-BR
 - Badges: CI passing, cobertura, licença MIT, último commit, status do deploy, OpenSSF Scorecard
 - Link do DEMO AO VIVO no topo, apontando de preferência ao painel de conciliação (caminho rápido) + disclaimer 'Demo sandbox — não processa dinheiro real'
-- Hero visual: GIF de 3s do wow (reenviar webhook → contador 'processado 1× / bloqueado 1×')
+- Hero visual: GIF de 3s da demonstração (reenviar webhook → contador 'processado 1× / bloqueado 1×')
 - 'O que isto prova' — integração Pix real com webhook assinado, idempotência e conciliação, incluindo a nota de que ≥1 webhook real do MP sandbox foi capturado e usado como fixture de teste em CI
 - Escopo: o que FAZ e, explicitamente, o que NÃO faz
 - Como a segurança funciona: as três camadas, por que as ações admin vivem em rotas separadas com token não-secreto (não é contradição com 'zero login'), e o hardening de borda (CSP no site estático, container non-root, actions SHA-pinned)
@@ -213,10 +217,6 @@ README de vitrine em PT-BR com TL;DR em inglês no topo e badges (CI, cobertura,
 - Observabilidade: screenshot do painel de conciliação (com e-mail já mascarado, mostrando o hardening em ação)
 - Nota sobre onde o Postgres de produção mora e por quê (transparência sobre a decisão de persistência)
 - Licença MIT + SemVer + link do perfil (hub) e dos outros projetos
-
-## Esforço estimado
-
-Reestimado para cima em honestidade por conta da barra de excelência endurecida nesta auditoria final. Núcleo funcional (produto, Pix sandbox real, webhook com as 3 camadas, seed com pedido pago pré-semeado, rotas admin separadas com demo-token, e-mail mascarado, polling curto): ~1,5 dia. Acabamento de produção inegociável (CI com ~21 jobs incluindo teste contra fixture real do MP, teste-admin, mutation testing no core, size-limit, container-scan/hadolint/SBOM/OSV/Scorecard, actions SHA-pinned + token least-privilege, CSP no site estático, Dockerfile multi-stage non-root, API versionada + problem+json + terminus + graceful shutdown, TS strict, Husky/commitlint, a11y AA, Lighthouse, 3 ADRs, README com GIF/OG, decisão de persistência de banco resolvida, keep-warm): ~2 a 2,5 dias. Total honesto: 3,5 a 4 dias de trabalho focado. Isto NÃO é mais um projeto de 'meio expediente' — é '1-2 dias de núcleo + acabamento de produção à parte'. Contingência se ultrapassar 4,5 dias: rebaixar Lighthouse e size-limit de bloqueante para informativo na primeira iteração, e mover mutation-core/Scorecard/OSV para cron noturno em vez de gate de PR — NUNCA cortar os gates de segurança/teste core (verificação de assinatura, idempotência, corrida, fixture real do MP), a separação de rotas admin, o mascaramento de e-mail, a CSP do site estático, nem a decisão de persistência do banco. Esses são os furos que as duas rodadas de revisão fecharam e não voltam a abrir sob pressão de prazo.
 
 ## Riscos
 

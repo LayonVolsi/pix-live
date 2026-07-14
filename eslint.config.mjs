@@ -65,5 +65,13 @@ export default tseslint.config(
     files: ['*.{mjs,cjs,ts}', 'apps/*/*.{mjs,cjs}'],
     languageOptions: { globals: { ...globals.node } },
   },
+  {
+    // Ferramentas de repositório (scripts/): rodam em Node, fora de qualquer tsconfig.
+    // `no-console` fica DESLIGADO aqui de propósito: o gate de divulgação se comunica
+    // pelo stdout/stderr — é a interface dele com o dev e com o CI.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node } },
+    rules: { 'no-console': 'off' },
+  },
   prettier,
 );

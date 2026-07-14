@@ -37,7 +37,7 @@ export interface PanelView {
  * Observabilidade de domínio de primeira classe: o painel de conciliação. Público
  * por design (leitura), mas o e-mail do pagador é mascarado NO BACKEND. Contadores
  * derivados por agregação de vereditos (nunca campo mutável solto) — é daqui que
- * sai o "processado 1× · bloqueado 1×" do wow.
+ * sai o "processado 1× · bloqueado 1×" da demonstração.
  */
 @Injectable()
 export class ReconciliationService {

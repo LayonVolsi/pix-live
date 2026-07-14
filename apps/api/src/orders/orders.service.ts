@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Order } from '@prisma/client';
@@ -42,7 +42,7 @@ export class OrdersService {
     //
     // Fail-closed e HONESTO: quando acaba, a demo diz que acabou. Cair para o mock
     // em silêncio mostraria um QR falso alegando sandbox real — mentira para o
-    // avaliador, que é pior que a indisponibilidade.
+    // visitante, que é pior que a indisponibilidade.
     if (this.isRealProvider() && !this.budget.consume('create_charge', CREATE_CHARGE_BUDGET)) {
       throw new ServiceUnavailableException(
         'demonstração temporariamente indisponível — limite de cobranças de sandbox atingido',
@@ -54,7 +54,14 @@ export class OrdersService {
       throw new NotFoundException('nenhum produto ativo configurado');
     }
 
-    const publicRef = `PIX-${randomUUID().slice(0, 8)}`;
+    // 128 bits. O `publicRef` não é só um identificador: é um CAPABILITY TOKEN — quem o
+    // tem lê `GET /orders/:publicRef`, que devolve o QR EMV **pagável** daquele pedido, sem
+    // autenticação (por design: o comprador abre o link sem login). Com os 32 bits de um
+    // `randomUUID().slice(0, 8)`, adivinhar o pedido de outra pessoa é viável — e o que se
+    // ganha é a cobrança dela. O seed `PIX-demopaga` segue fixo de propósito: é o pedido-demo
+    // compartilhado, adivinhável por vocação. O que precisa ser inadivinhável é o pedido de
+    // um visitante real.
+    const publicRef = `PIX-${randomBytes(16).toString('base64url')}`;
     const draft = await this.prisma.order.create({
       data: {
         publicRef,

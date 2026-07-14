@@ -17,17 +17,17 @@
 
 ## ▶️ Demo ao vivo
 
-> **`<DEMO_URL>`** — _placeholder: o link ainda não existe. Será fixado aqui apontando de preferência ao **painel de conciliação** (caminho de wow em menos de 10s)._
+> **`<DEMO_URL>`** — _placeholder: o link ainda não existe. Será fixado aqui apontando de preferência ao **painel de conciliação** (caminho da demonstração em menos de 10s)._
 
 > ⚠️ **Demo sandbox — não processa dinheiro real.** Toda cobrança é gerada no ambiente de testes do Mercado Pago. Nenhum valor real transita, nenhum Pix real é cobrado. Isto é um projeto de portfólio, não um produto financeiro em produção.
 
-### O wow em 10 segundos
+### A demonstração em 10 segundos
 
 Abra o painel de conciliação: já existe ali um **pedido pago pré-semeado** com histórico de webhook. Clique **"reenviar este webhook"**. Em segundos o contador daquele pedido vira **`processado 1× · idempotência bloqueou 1×`**, o log registra o veredito **`duplicata_ignorada`**, e o valor **não dobra**. Sem login, sem gerar nada.
 
-<!-- Hero visual: GIF de ~3s do wow (reenviar webhook → contador "processado 1× / bloqueado 1×"). -->
+<!-- Hero visual: GIF de ~3s da demonstração (reenviar webhook → contador "processado 1× / bloqueado 1×"). -->
 
-> 🎞️ _Placeholder do GIF do wow — a ser adicionado em `docs/wow.gif` quando o front estiver no ar._
+> 🎞️ _Placeholder do GIF da demonstração — a ser adicionado em `docs/demo.gif` quando o front estiver no ar._
 
 ---
 
@@ -36,11 +36,11 @@ Abra o painel de conciliação: já existe ali um **pedido pago pré-semeado** c
 Integração **Pix real** de ponta a ponta com a barra de segurança e engenharia de um time grande — em escopo minúsculo, de propósito:
 
 - **Webhook assinado de verdade.** Verificação HMAC-SHA256 sobre o **corpo cru** (raw body), em **tempo constante**, remontando o manifesto exato do provedor.
-- **Integração real, não auto-simulação** (_planejado_ — entra na fase do sandbox MP): pelo menos **1 webhook REAL capturado do sandbox do Mercado Pago** (headers e payload genuínos, PII redigida) será versionado como **fixture de teste em CI** — fecha a dúvida óbvia do avaliador técnico: "isso valida contra o formato real do provedor ou só contra si mesmo?".
+- **Integração real, não auto-simulação** (_planejado_ — entra na fase do sandbox MP): pelo menos **1 webhook REAL capturado do sandbox do Mercado Pago** (headers e payload genuínos, PII redigida) será versionado como **fixture de teste em CI** — responde à dúvida óbvia de quem audita: "isso valida contra o formato real do provedor ou só contra si mesmo?".
 - **Dinheiro não duplica — garantido pelo banco.** O crédito é exatamente-uma-vez via **constraint de unicidade** em transação, sob corrida entre entregas simultâneas (`at-least-once` do provedor resolvido pelo banco, não por `if` em memória).
 - **Processo de engenharia visível.** CI com **CodeQL**, **gitleaks** e **dependency-review** desde o primeiro commit; **OpenSSF Scorecard**, **SBOM** e **scan de imagem** entram no endurecimento (roadmap declarado abaixo) — não só código, mas a cadeia de entrega levada a sério.
 
-**Contraste que vende:** escopo de brinquedo, barra de produção. Um produto fixo, um preço — a loja fictícia **Papelaria Nó de Fita** vendendo o **Kit Caderno Artesanal** por **R$ 47,00**.
+**O contraste é deliberado:** escopo pequeno, barra de produção. Um produto fixo, um preço — a loja fictícia **Papelaria Nó de Fita** vendendo o **Kit Caderno Artesanal** por **R$ 47,00**.
 
 ---
 
@@ -55,7 +55,7 @@ Fronteira explícita — maturidade é dizer o que **não** se faz.
 - Página de pagamento com QR, copiar copia-e-cola, contador de expiração e status que vira **"Pago"** via polling curto (pausado quando a aba perde foco, encerrado em estado final).
 - Endpoint público de webhook: raw body, HMAC em tempo constante, processamento idempotente e cap de tamanho de corpo; só `application/json` é parseado — corpo em outro formato falha fechado em 401.
 - **Painel de conciliação público** (leitura): pedidos e log de webhooks com veredito, validade de assinatura e latência — **e-mail do pagador mascarado no backend** (nunca só CSS).
-- Um pedido **já pago pré-semeado** para alcançar o wow em <10s direto pelo link.
+- Um pedido **já pago pré-semeado** para alcançar a demonstração em <10s direto pelo link.
 - **Modo mock MP** para rodar 100% offline no dev local e no CI, sem conta no Mercado Pago — `docker compose up` sobe Postgres, migrations, seed, API e front num comando.
 - API versionada (`/api/v1`), erro em `problem+json` (RFC 9457), OpenAPI/Swagger, health `live`/`ready` e graceful shutdown.
 
@@ -84,7 +84,7 @@ A rota pública `POST /api/v1/webhooks/mercadopago` **nunca** aceita nenhuma fla
 
 ### Rotas admin separadas — não é contradição com "zero login"
 
-O painel de conciliação é **público por design** (só leitura). As ações de **escrita** ("simular confirmação", "reenviar webhook") vivem em **rotas `/api/v1/admin/*` separadas**, protegidas por um **demo-token NÃO-secreto** — pré-anexado pelo front (zero fricção pro avaliador) e rotulado na UI como _"token de demonstração pública, não é credencial real"_, com rate limit próprio bem mais agressivo (alvo óbvio de bot/scraper).
+O painel de conciliação é **público por design** (só leitura). As ações de **escrita** ("simular confirmação", "reenviar webhook") vivem em **rotas `/api/v1/admin/*` separadas**, protegidas por um **demo-token NÃO-secreto** — pré-anexado pelo front (zero fricção pro visitante) e rotulado na UI como _"token de demonstração pública, não é credencial real"_, com rate limit próprio bem mais agressivo (alvo óbvio de bot/scraper).
 
 O botão **"reenviar webhook"** invoca o **pipeline do core diretamente em processo** (`source='admin_replay'`, parâmetro interno confiável) — **nunca** faz um novo POST à rota pública. Assim a Camada 2 nunca é reaberta a um vetor de forjamento.
 
@@ -153,7 +153,7 @@ cp .env.example .env       # PAYMENT_PROVIDER=mock já vem por padrão
 # aponte DATABASE_URL do .env para um Postgres local vazio, e então:
 cd apps/api
 DATABASE_URL="postgresql://..." pnpm run db:migrate   # aplica as migrations
-DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia o pedido pago do wow
+DATABASE_URL="postgresql://..." pnpm run db:seed      # semeia o pedido pago da demonstração
 cd ../..
 pnpm build && node apps/api/dist/main.js              # API em http://localhost:3000
 cd apps/web && VITE_DEMO_TOKEN=demo-nao-secreto pnpm dev   # front em http://localhost:5173
@@ -275,6 +275,6 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 
 Para honestidade total sobre o que já está no repositório vs. o que segue este README:
 
-- **Pronto e testado:** `packages/core` — o domínio puro que decide "o dinheiro duplica ou não" (assinatura HMAC, idempotência/anti-replay, máquina de estados, formatação de dinheiro); `apps/api` — o backend completo (webhook das 3 camadas, rotas admin, loja, painel de conciliação e seed), provado por testes de integração contra Postgres real; `apps/web` — o front React/Vite completo (loja, página de pagamento com QR + copia-e-cola + contador + polling pausado por Page Visibility, e painel de conciliação com o replay-wow), com testes de componente (jsdom) na mesma suíte; o empacotamento em container — Dockerfiles multi-stage non-root da API e do front, `docker compose up` full-stack offline com seed determinístico, verificado ponta a ponta com hadolint/Trivy limpos e as 3 imagens-base pinadas por digest; e os documentos `SECURITY.md`, `ARCHITECTURE.md` e `adr/0001..0005`.
+- **Pronto e testado:** `packages/core` — o domínio puro que decide "o dinheiro duplica ou não" (assinatura HMAC, idempotência/anti-replay, máquina de estados, formatação de dinheiro); `apps/api` — o backend completo (webhook das 3 camadas, rotas admin, loja, painel de conciliação e seed), provado por testes de integração contra Postgres real; `apps/web` — o front React/Vite completo (loja, página de pagamento com QR + copia-e-cola + contador + polling pausado por Page Visibility, e painel de conciliação com o replay demonstrativo), com testes de componente (jsdom) na mesma suíte; o empacotamento em container — Dockerfiles multi-stage non-root da API e do front, `docker compose up` full-stack offline com seed determinístico, verificado ponta a ponta com hadolint/Trivy limpos e as 3 imagens-base pinadas por digest; e os documentos `SECURITY.md`, `ARCHITECTURE.md` e `adr/0001..0005`.
 - **Em construção conforme este spec:** a integração real com o sandbox do MP (fixture incluída), o deploy, o **demo ao vivo**, os badges de CI/Scorecard/deploy e os GIFs/screenshots.
 - Onde este README diz `<...>`, "placeholder" ou _planejado_, o item **ainda não existe** — nada aqui afirma que a demo já está no ar.

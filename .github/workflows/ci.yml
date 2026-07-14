@@ -22,12 +22,29 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # História completa: o gate de divulgação varre as MENSAGENS DE COMMIT da PR, e o
+          # default (fetch-depth: 1) não tem o range. Sem isto, a varredura de mensagens vira
+          # recurso morto — presente no código, nunca executada.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Antes de qualquer build: nenhuma tese comercial na árvore publicável NEM nas mensagens
+      # de commit (que também são públicas para sempre — e um commit que remove a tese pode
+      # reintroduzi-la ao citar o que removeu). Vem primeiro porque é o único gate cuja falha
+      # é IRREVERSÍVEL depois do push: conteúdo publicado sobrevive em refs/pull/* mesmo após
+      # rewrite + force-push. Não depende de build.
+      - name: Gate de divulgação (árvore + mensagens de commit)
+        run: |
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            pnpm check:disclosure "${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+          else
+            pnpm check:disclosure "${{ github.event.before }}..${{ github.sha }}"
+          fi
       # o client Prisma é gerado, não versionado — em checkout limpo o
       # @prisma/client exporta stubs sem os modelos e lint/typecheck/build
       # quebram (TS2305). O job test não precisa: vitest não checa tipos e a

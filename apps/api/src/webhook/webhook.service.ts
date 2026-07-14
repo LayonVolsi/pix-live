@@ -110,7 +110,7 @@ export class WebhookService {
     // feita SÓ quando muda o veredito — `remoteLookupNeeded` é a invariante que
     // prova isso contra a ordem de `decideVerdict` (teste exaustivo no core).
     // Com o provedor real, cada consulta é uma chamada autenticada de saída: o
-    // replay de um pedido já creditado (o caminho do wow, acionável por qualquer
+    // replay de um pedido já creditado (o caminho da demonstração, acionável por qualquer
     // visitante) passa a custar ZERO chamada externa.
     let remote: RemotePayment | null = null;
     if (
