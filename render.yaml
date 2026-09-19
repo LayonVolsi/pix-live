@@ -1,0 +1,98 @@
+# Blueprint de deploy (Render). Desenho fixado pelos laudos da rodada 2026-07-13/14 —
+# as restrições abaixo não são preferência, cada uma fecha um modo de falha concreto.
+#
+# LEIA ANTES DE APLICAR:
+#  1. O banco NÃO é o Postgres do Render (o plano free é DELETADO em ~30 dias e a demo
+#     se autodestrói em silêncio). É um projeto Supabase DEDICADO — nunca o do produto
+#     real: esta demo tem painel admin público por design.
+#  2. Os valores `sync: false` não vivem no repositório. São preenchidos no painel.
+#  3. Instância única, sem autoscale: a retenção e o orçamento de saída são in-process.
+
+services:
+  # ── Front: site ESTÁTICO, não o Dockerfile+nginx ───────────────────────────
+  # O nginx da imagem faz `proxy_pass http://api:3000`, nome que só existe na rede do
+  # compose. No Render isso viraria 502 em toda chamada. Estático + CORS é o caminho.
+  - type: web
+    name: pix-live-web
+    runtime: static
+    rootDir: .
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pix-live/core run build && pnpm --filter @pix-live/web run build
+    staticPublishPath: apps/web/dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # Origem absoluta da API — o front é baked no build, então isto precisa existir
+      # ANTES do build. Sem ela o bundle chamaria caminho relativo e bateria no próprio
+      # site estático, que não tem /api.
+      - key: VITE_API_URL
+        value: https://pix-live-api.onrender.com
+      # Token de demonstração: público por design (a UI rotula), não é credencial.
+      # Precisa ser O MESMO valor do DEMO_TOKEN da API — se divergirem, todo clique
+      # do painel vira 401 no meio da demonstração.
+      - key: DEMO_TOKEN
+        sync: false
+    routes:
+      # SPA: qualquer rota não-arquivo cai no index (o roteador é client-side).
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+  # ── API ────────────────────────────────────────────────────────────────────
+  - type: web
+    name: pix-live-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    # INSTÂNCIA ÚNICA, sem autoscale: a purga de retenção e o orçamento de chamadas
+    # externas são estado in-process. Duas instâncias = duas purgas concorrentes e
+    # dois orçamentos independentes, cada um achando que é o único.
+    numInstances: 1
+    # /health/live, NUNCA /health/ready. O Render usa UM path só para decidir tráfego
+    # E reciclagem: apontar para o readiness faz um blip do Postgres MATAR o processo.
+    healthCheckPath: /health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Origem exata do front. Obrigatória em produção (trava no schema de env):
+      # sem ela a API sobe saudável e cada clique do front morre no CORS.
+      - key: WEB_ORIGIN
+        value: https://pix-live-web.onrender.com
+      # Supabase dedicado. DATABASE_URL = pooler (compatível IPv4, rotulado no painel
+      # "Connect"); DIRECT_URL = conexão direta, exigida pelo CLI do Prisma no migrate.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      # Atrás de pooler em modo transaction o certo é 1: competir com o pooler externo
+      # só produz fila invisível.
+      - key: DATABASE_CONNECTION_LIMIT
+        value: 1
+      - key: DATABASE_POOL_TIMEOUT
+        value: 10
+      - key: DEMO_RETENTION_HOURS
+        value: 48
+      # Provedor: sandbox do Mercado Pago. O schema RECUSA subir com credencial de
+      # produção (prefixo APP_USR-) — esta demo não move dinheiro real, por construção.
+      - key: PAYMENT_PROVIDER
+        value: mercadopago
+      # NUNCA `generateValue` aqui: este segredo casa com o que o Mercado Pago assina.
+      # Um valor gerado pelo Render produziria verificação sempre falhando — que PARECE
+      # segurança funcionando, o pior modo de falha possível.
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_TEST_PAYER_EMAIL
+        sync: false
+      - key: DEMO_TOKEN
+        sync: false
