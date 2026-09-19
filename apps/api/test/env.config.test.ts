@@ -139,3 +139,41 @@ describe('validateEnv — travas do provedor de pagamento', () => {
     ).toThrow(/mock é proibido em produção/);
   });
 });
+
+describe('validateEnv — WEB_ORIGIN (CORS do deploy)', () => {
+  it('ausente fora de produção sobe: no compose front e API são a mesma origem', () => {
+    const env = validateEnv({ ...BASE, PAYMENT_PROVIDER: 'mock', ALLOW_MOCK_PROVIDER: 'true' });
+    expect(env.WEB_ORIGIN).toBeUndefined();
+  });
+
+  it('ausente em PRODUÇÃO não sobe — a API ficaria saudável e o front, mudo', () => {
+    expect(() =>
+      validateEnv({
+        ...BASE,
+        NODE_ENV: 'production',
+        PAYMENT_PROVIDER: 'mercadopago',
+        MP_ACCESS_TOKEN: 'TEST-1234567890-abc',
+        MP_TEST_PAYER_EMAIL: 'test_user_123@testuser.com',
+      }),
+    ).toThrow(/WEB_ORIGIN é obrigatório em produção/);
+  });
+
+  it('origem exata em produção sobe', () => {
+    const env = validateEnv({
+      ...BASE,
+      NODE_ENV: 'production',
+      PAYMENT_PROVIDER: 'mercadopago',
+      MP_ACCESS_TOKEN: 'TEST-1234567890-abc',
+      MP_TEST_PAYER_EMAIL: 'test_user_123@testuser.com',
+      WEB_ORIGIN: 'https://pix-live-web.onrender.com',
+    });
+    expect(env.WEB_ORIGIN).toBe('https://pix-live-web.onrender.com');
+  });
+
+  it.each([
+    ['barra final', 'https://pix-live-web.onrender.com/'],
+    ['com caminho', 'https://pix-live-web.onrender.com/painel'],
+  ])('recusa %s — o browser compara a origem byte a byte', (_caso, valor) => {
+    expect(() => validateEnv({ ...BASE, WEB_ORIGIN: valor })).toThrow(/ORIGEM exata/);
+  });
+});
