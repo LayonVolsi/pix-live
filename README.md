@@ -25,6 +25,8 @@ docker compose up     # sobe Postgres + migrações + seed + API + front
 Abra **http://localhost:8080** → painel de conciliação. Sem chave de API, sem internet,
 sem cadastro: o seed já deixa um pedido pago com histórico de webhook esperando por você.
 
+![A demonstração: reenviar o mesmo webhook e ver a idempotência bloquear a duplicata, com o contador indo de `bloqueado 0×` para `bloqueado 1×` e o valor sem dobrar.](./docs/demo.gif)
+
 ### A demonstração, em 10 segundos
 
 No painel já existe um **pedido pago pré-semeado**. Clique em **"reenviar este webhook"**.
