@@ -1,3 +1,16 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# FALLBACK ARQUIVADO — NUNCA EXERCITADO (emenda de 2026-09-19)
+#
+# O host decidido é um droplet dedicado, não o Render. Este arquivo fica porque
+# arquivar é diferente de apagar: se o droplet não sair, ele é o plano B pronto.
+#
+# Leia com ceticismo: este desenho NUNCA subiu. Foi escrito em 19/09 e os quatro
+# modos de falha comentados abaixo (health check no path errado, token divergente
+# entre front e API, segredo gerado por engano, banco free deletado em ~30 dias)
+# são conhecidos por leitura, não por deploy. Nota de risco atribuída a config
+# que nunca rodou não é evidência.
+# ══════════════════════════════════════════════════════════════════════════════
+
 # Blueprint de deploy (Render). Desenho fixado pelos laudos da rodada 2026-07-13/14 —
 # as restrições abaixo não são preferência, cada uma fecha um modo de falha concreto.
 #
