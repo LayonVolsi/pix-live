@@ -1,8 +1,9 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # FALLBACK ARQUIVADO — NUNCA EXERCITADO (emenda de 2026-09-19)
 #
-# O host decidido é um droplet dedicado, não o Render. Este arquivo fica porque
-# arquivar é diferente de apagar: se o droplet não sair, ele é o plano B pronto.
+# Nenhum host foi contratado: a demonstração roda local com `docker compose up`, por
+# decisão (custo zero). Este arquivo fica porque arquivar é diferente de apagar: é o
+# plano B pronto se um dia a demo hospedada voltar ao escopo.
 #
 # Leia com ceticismo: este desenho NUNCA subiu. Foi escrito em 19/09 e os quatro
 # modos de falha comentados abaixo (health check no path errado, token divergente

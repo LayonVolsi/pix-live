@@ -33,9 +33,9 @@ No painel já existe um **pedido pago pré-semeado**. Clique em **"reenviar este
 O contador daquele pedido vira **`processado 1× · idempotência bloqueou 1×`**, o log registra
 o veredito **`duplicata_ignorada`**, e o valor **não dobra**. Sem login, sem gerar nada.
 
-> **Demo hospedada:** ainda não está no ar — o blueprint de deploy está em
-> [`render.yaml`](./render.yaml) e o que falta são as credenciais do host. Quando subir, o link
-> entra aqui. Até lá, o comando acima roda exatamente a mesma coisa na sua máquina.
+> **Demo hospedada:** não faz parte do projeto, por decisão — o `docker compose up` acima é a
+> demonstração, e roda a mesma coisa que uma versão no ar rodaria. O blueprint em
+> [`render.yaml`](./render.yaml) fica como plano B documentado e nunca exercitado.
 
 > ⚠️ **Sandbox — não processa dinheiro real.** Toda cobrança é gerada no ambiente de testes do
 > Mercado Pago. Nenhum valor real transita. Isto é um projeto de portfólio, não um produto
@@ -46,7 +46,8 @@ o veredito **`duplicata_ignorada`**, e o valor **não dobra**. Sem login, sem ge
 **Pronto e testado:** o domínio que decide se o dinheiro duplica (assinatura HMAC, idempotência,
 máquina de estados), a API inteira provada por testes de integração contra Postgres real, o front
 completo, o empacotamento em container com imagens pinadas por digest, e os ADRs.
-**Falta:** o deploy hospedado, os GIFs, e a integração com o sandbox real do Mercado Pago.
+**Em construção:** a integração com o sandbox real do Mercado Pago (a fixture de webhook real já
+está no repositório). **Fora do escopo por decisão:** demo hospedada.
 Onde este README diz "placeholder" ou _planejado_, o item **não existe** — nada aqui afirma o contrário.
 
 ---
@@ -223,9 +224,7 @@ Pirâmide real, específica deste domínio:
 
 **Cobertura imposta no CI:** core ≥90% em linhas/branches/funções/statements (thresholds do vitest reprovam o run). Gate global ≥80% incluindo `apps/` é _planejado_ — entra no endurecimento do CI. CI em Node LTS. Branch protection com checks required em `main` é _planejada_ (configuração do GitHub — entra na publicação).
 
-<!-- Print da aba Actions com todos os checks required verdes. -->
-
-> 🖼️ _Placeholder do print da aba Actions (checks required verdes) — a ser adicionado quando o pipeline `ci.yml` estiver publicado._
+O estado do pipeline é o badge de CI no topo deste README — ele aponta para a aba Actions, que é a prova, não um print dela.
 
 ---
 
@@ -269,9 +268,7 @@ O design completo (spec adversarialmente revisada) está em **[`SPEC.md`](./SPEC
 
 O painel de conciliação é observabilidade de domínio de primeira classe: cada webhook vira um registro auditável com **veredito, validade de assinatura e latência em ms**. A UI deixa explícito que ações de escrita passam por rota admin separada e que o **e-mail é mascarado no backend** — transparência sobre o próprio hardening. Nos bastidores: logs estruturados JSON (pino) com **request-id** correlacionado ponta a ponta e redaction de e-mail/token/secret; health `live`/`ready` (readiness pinga o Postgres); graceful shutdown que drena requests em voo e fecha o Prisma.
 
-<!-- Screenshot do painel de conciliação (e-mail já mascarado, mostrando o hardening em ação). -->
-
-> 🖼️ _Placeholder do screenshot do painel de conciliação — a ser adicionado quando o front estiver no ar._
+![Painel de conciliação: e-mail do pagador já mascarado no backend, veredito e latência de cada webhook, e o replay demonstrativo por rota admin separada.](./docs/painel.png)
 
 ---
 
@@ -284,8 +281,7 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 ## 📄 Licença & mais
 
 - **Licença:** [MIT](./LICENSE) · **Versionamento:** SemVer (primeira release pública `v1.0.0`; CHANGELOG manual até lá, automatizado por release-please a partir dela).
-- **Perfil / hub:** `<HUB_URL>` _(placeholder do link do hub com os demais projetos)_.
-- **Outros projetos públicos:** `<PORTFOLIO_URL>` _(placeholder)_.
+- **Autor:** [github.com/LayonVolsi](https://github.com/LayonVolsi).
 
 > Este é um dos projetos públicos de portfólio de um dev full-stack BR que entrega **produto completo com segurança por padrão**. O código de negócio real fica fechado — discrição profissional, não desculpa; este projeto de escopo minúsculo mostra a **barra de execução** em código aberto.
 
@@ -296,5 +292,5 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 O resumo está no topo; aqui vai o detalhe, para honestidade total sobre o que já existe no repositório vs. o que este README descreve:
 
 - **Pronto e testado:** `packages/core` — o domínio puro que decide "o dinheiro duplica ou não" (assinatura HMAC, idempotência/anti-replay, máquina de estados, formatação de dinheiro); `apps/api` — o backend completo (webhook das 3 camadas, rotas admin, loja, painel de conciliação e seed), provado por testes de integração contra Postgres real; `apps/web` — o front React/Vite completo (loja, página de pagamento com QR + copia-e-cola + contador + polling pausado por Page Visibility, e painel de conciliação com o replay demonstrativo), com testes de componente (jsdom) na mesma suíte; o empacotamento em container — Dockerfiles multi-stage non-root da API e do front, `docker compose up` full-stack offline com seed determinístico, verificado ponta a ponta com hadolint/Trivy limpos e as 3 imagens-base pinadas por digest; e os documentos `SECURITY.md`, `ARCHITECTURE.md` e `adr/0001..0005`.
-- **Em construção conforme este spec:** a integração real com o sandbox do MP (fixture incluída), o **deploy hospedado** (blueprint pronto em [`render.yaml`](./render.yaml) — falta só a credencial do host) e os GIFs/screenshots.
+- **Em construção conforme este spec:** a integração real com o sandbox do MP (fixture incluída). O **deploy hospedado** está fora do escopo por decisão (blueprint arquivado em [`render.yaml`](./render.yaml), nunca exercitado); o GIF da demonstração está em [`docs/demo.gif`](./docs/demo.gif).
 - Onde este README diz `<...>`, "placeholder" ou _planejado_, o item **ainda não existe** — nada aqui afirma que a demo já está no ar.
