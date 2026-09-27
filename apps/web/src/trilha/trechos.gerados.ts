@@ -46,14 +46,14 @@ export const TRECHOS = {
   },
   "valor_confere": {
     "arquivo": "apps/api/src/webhook/webhook.service.ts",
-    "linhas": "266-273",
-    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L266-L273",
+    "linhas": "269-276",
+    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L269-L276",
     "codigo": "if (remote.amountCents !== order.amountCents) {\n  // Nunca loga o valor absoluto junto do id do pedido — só o fato.\n  return 'valor divergente';\n}\nif (remote.externalReference !== order.id) {\n  return 'referência externa divergente';\n}\nreturn null;"
   },
   "valor_divergente": {
     "arquivo": "apps/api/src/webhook/webhook.service.ts",
-    "linhas": "266-273",
-    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L266-L273",
+    "linhas": "269-276",
+    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L269-L276",
     "codigo": "if (remote.amountCents !== order.amountCents) {\n  // Nunca loga o valor absoluto junto do id do pedido — só o fato.\n  return 'valor divergente';\n}\nif (remote.externalReference !== order.id) {\n  return 'referência externa divergente';\n}\nreturn null;"
   },
   "horario_suspeito": {
@@ -64,14 +64,14 @@ export const TRECHOS = {
   },
   "credito_registrado": {
     "arquivo": "apps/api/src/webhook/webhook.service.ts",
-    "linhas": "291-305",
-    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L291-L305",
+    "linhas": "294-308",
+    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L294-L308",
     "codigo": "try {\n  await this.prisma.$transaction(async (tx) => {\n    await tx.orderCredit.create({\n      data: { orderId: order.id, mpPaymentId, amountCents: order.amountCents },\n    });\n    await tx.order.update({\n      where: { id: order.id },\n      data: { status: 'paid', paidAt: new Date() },\n    });\n  });\n  return 'credited';\n} catch (error) {\n  if (this.isUniqueViolation(error)) return 'duplicate';\n  throw error;\n}"
   },
   "credito_bloqueado_pelo_banco": {
     "arquivo": "apps/api/src/webhook/webhook.service.ts",
-    "linhas": "291-305",
-    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L291-L305",
+    "linhas": "294-308",
+    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L294-L308",
     "codigo": "try {\n  await this.prisma.$transaction(async (tx) => {\n    await tx.orderCredit.create({\n      data: { orderId: order.id, mpPaymentId, amountCents: order.amountCents },\n    });\n    await tx.order.update({\n      where: { id: order.id },\n      data: { status: 'paid', paidAt: new Date() },\n    });\n  });\n  return 'credited';\n} catch (error) {\n  if (this.isUniqueViolation(error)) return 'duplicate';\n  throw error;\n}"
   },
   "nao_creditei_de_novo": {
@@ -88,8 +88,8 @@ export const TRECHOS = {
   },
   "auditoria_gravada": {
     "arquivo": "apps/api/src/webhook/webhook.service.ts",
-    "linhas": "332-345",
-    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L332-L345",
+    "linhas": "335-348",
+    "url": "https://github.com/LayonVolsi/pix-live/blob/main/apps/api/src/webhook/webhook.service.ts#L335-L348",
     "codigo": "await this.prisma.webhookEvent.create({\n  data: {\n    source,\n    signatureHeader: input.signatureHeader,\n    requestIdHeader: input.requestId,\n    tsFromSignature: ts,\n    signatureValid: true, // só eventos com assinatura válida chegam aqui\n    verdict,\n    mpPaymentId,\n    relatedOrderId,\n    processingMs,\n    rawBody: input.rawBody, // persistido só para assinatura válida (anti-flood)\n  },\n});"
   }
 } as const;

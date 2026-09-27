@@ -177,6 +177,109 @@ describe.skipIf(!HAS_DB)('WebhookService (integração, Postgres real)', () => {
     expect(verdicts).toEqual(['duplicata_ignorada', 'processado']);
   });
 
+  // ── Trilha da decisão: cada caminho devolve EXATAMENTE os passos que executou. ──────────
+  it('trilha: pagamento de pedido desconhecido → consulta, não credita', async () => {
+    const out = await service.process(signedInput('pay-sem-pedido', 'req-t-desc', nowSeconds));
+    expect(out.verdict).toBe('pagamento_desconhecido');
+    expect(out.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_nao_localizado',
+      'provedor_consultado',
+      'sem_credito',
+      'auditoria_gravada',
+    ]);
+  });
+
+  it('trilha: valor divergente → consulta, confere, recusa', async () => {
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: orderId, amountCents: 100 }),
+      new OutboundBudgetService(),
+    );
+    const out = await divergente.process(signedInput(PAYMENT_ID, 'req-t-div', nowSeconds));
+    expect(out.verdict).toBe('dados_divergentes');
+    expect(out.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_localizado',
+      'provedor_consultado',
+      'valor_divergente',
+      'sem_credito',
+      'auditoria_gravada',
+    ]);
+  });
+
+  it('trilha: horário fora da janela → marcado como suspeito e credita', async () => {
+    const out = await service.process(
+      signedInput(PAYMENT_ID, 'req-t-ts', nowSeconds - 2 * 24 * 3600),
+    );
+    expect(out.verdict).toBe('ts_suspeito');
+    expect(out.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_localizado',
+      'provedor_consultado',
+      'horario_suspeito',
+      'valor_confere',
+      'credito_registrado',
+      'auditoria_gravada',
+    ]);
+  });
+
+  it('trilha: horário suspeito E valor divergente → a trilha mostra OS DOIS (achado da revisão)', async () => {
+    const divergente = new WebhookService(
+      prisma,
+      fakeConfig,
+      mismatchedProvider({ externalReference: orderId, amountCents: 100 }),
+      new OutboundBudgetService(),
+    );
+    const out = await divergente.process(
+      signedInput(PAYMENT_ID, 'req-t-ts-div', nowSeconds - 2 * 24 * 3600),
+    );
+    expect(out.verdict).toBe('dados_divergentes');
+    expect(out.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_localizado',
+      'provedor_consultado',
+      'horario_suspeito',
+      'valor_divergente',
+      'sem_credito',
+      'auditoria_gravada',
+    ]);
+  });
+
+  it('trilha: o banco recusa o 2º crédito (corrida perdida) → credito_bloqueado_pelo_banco', async () => {
+    // Determinístico: o "concorrente vencedor" grava o crédito DEPOIS que este processamento
+    // já leu que não havia crédito — exatamente a janela em que só a constraint única salva.
+    const concorrente: PaymentProvider = {
+      createPixCharge: (): Promise<PixCharge> => {
+        throw new Error('não usado no teste');
+      },
+      getPayment: async (): Promise<RemotePayment | null> => {
+        await prisma.orderCredit.create({
+          data: { orderId, mpPaymentId: PAYMENT_ID, amountCents: 4700 },
+        });
+        return { status: 'approved', externalReference: orderId, amountCents: 4700 };
+      },
+    };
+    const perdedor = new WebhookService(
+      prisma,
+      fakeConfig,
+      concorrente,
+      new OutboundBudgetService(),
+    );
+    const out = await perdedor.process(signedInput(PAYMENT_ID, 'req-t-p2002', nowSeconds));
+    expect(out.verdict).toBe('duplicata_ignorada');
+    expect(out.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_localizado',
+      'provedor_consultado',
+      'valor_confere',
+      'credito_bloqueado_pelo_banco',
+      'auditoria_gravada',
+    ]);
+    expect(await prisma.orderCredit.count()).toBe(1);
+  });
+
   it('assinatura inválida → 401 e ZERO escrita no banco (short-circuit)', async () => {
     const bad: WebhookInput = {
       rawBody: '{"data":{"id":"pay-integ-1"}}',

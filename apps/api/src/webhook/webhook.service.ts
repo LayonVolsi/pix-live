@@ -207,6 +207,10 @@ export class WebhookService {
       creditAlreadyExists,
       tsWithinWindow,
     });
+    // Anotado AQUI, do veredito recém-decidido — não mais adiante, onde `verdict` já pode ter
+    // sido sobrescrito por `dados_divergentes` e a trilha omitiria o horário suspeito que de
+    // fato foi apurado (achado da revisão da branch da trilha).
+    if (verdict === 'ts_suspeito') trail.push('horario_suspeito');
 
     // ── O pagamento que o provedor confirmou é REALMENTE deste pedido?
     // Até aqui, "aprovado" era palavra do provedor sobre um id — ninguém conferia
@@ -222,7 +226,6 @@ export class WebhookService {
       }
       trail.push(mismatch === null ? 'valor_confere' : 'valor_divergente');
     }
-    if (verdict === 'ts_suspeito') trail.push('horario_suspeito');
 
     // ── Camada 3: crédito idempotente (só quando o veredito credita E há pedido/pagamento).
     if (verdictResultsInCredit(verdict) && order !== null && remote !== null) {
