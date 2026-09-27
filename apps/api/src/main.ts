@@ -31,6 +31,21 @@ async function bootstrap(): Promise<void> {
   // um X-Forwarded-For forjado zeraria o rate limit. Confirmar o hop no deploy.
   app.set('trust proxy', 1);
 
+  // CORS existe por UM motivo: no deploy o front é um site estático noutra origem. No
+  // compose eles compartilham a origem do nginx e nada disto roda. É UMA origem explícita —
+  // `origin: true` (refletir o Origin de quem chama) seria o mesmo que não ter CORS.
+  // Sem credentials: a demo não tem cookie nem sessão, e o X-Demo-Token é público por
+  // design; liberar credenciais ampliaria a superfície sem fechar buraco nenhum.
+  if (env.WEB_ORIGIN !== undefined) {
+    app.enableCors({
+      origin: env.WEB_ORIGIN,
+      methods: ['GET', 'POST'],
+      allowedHeaders: ['Content-Type', 'X-Demo-Token'],
+      credentials: false,
+      maxAge: 600,
+    });
+  }
+
   app.use(helmet());
   app.useGlobalFilters(new ProblemDetailsFilter()); // contrato de erro problem+json (RFC 9457)
   app.enableShutdownHooks(); // SIGTERM drena requests em voo e fecha recursos.

@@ -4,30 +4,51 @@
 
 **Checkout Pix que não duplica dinheiro.** Reenvie o mesmo webhook e veja, ao vivo, a idempotência bloquear a segunda entrega — a prova de que "dinheiro não some", no idioma do cliente.
 
-<!-- Badges: os de license/último-commit só renderizam após a publicação do repo, e os de CI/deploy/Scorecard só acendem após o primeiro run/deploy. Ver "Estado atual do build". -->
+<!-- O badge de Scorecard só acende após o primeiro run da OpenSSF. Nenhum badge aqui anuncia algo que não existe — ver "Estado atual do build". -->
 
 [![CI](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml/badge.svg)](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml)
 [![Cobertura](https://img.shields.io/badge/cobertura-core%20%E2%89%A590%25%20imposto%20no%20CI-brightgreen)](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/LayonVolsi/pix-live/badge)](https://securityscorecards.dev/viewer/?uri=github.com/LayonVolsi/pix-live)
 [![Licença: MIT](https://img.shields.io/github/license/LayonVolsi/pix-live)](./LICENSE)
 [![Último commit](https://img.shields.io/github/last-commit/LayonVolsi/pix-live)](https://github.com/LayonVolsi/pix-live/commits)
-[![Deploy](https://img.shields.io/badge/deploy-placeholder-lightgrey)](#-demo-ao-vivo)
 
 ---
 
-## ▶️ Demo ao vivo
+## ▶️ Veja funcionando
 
-> **`<DEMO_URL>`** — _placeholder: o link ainda não existe. Será fixado aqui apontando de preferência ao **painel de conciliação** (caminho da demonstração em menos de 10s)._
+**Um comando, offline, sem conta em lugar nenhum:**
 
-> ⚠️ **Demo sandbox — não processa dinheiro real.** Toda cobrança é gerada no ambiente de testes do Mercado Pago. Nenhum valor real transita, nenhum Pix real é cobrado. Isto é um projeto de portfólio, não um produto financeiro em produção.
+```bash
+docker compose up     # sobe Postgres + migrações + seed + API + front
+```
 
-### A demonstração em 10 segundos
+Abra **http://localhost:8080** → painel de conciliação. Sem chave de API, sem internet,
+sem cadastro: o seed já deixa um pedido pago com histórico de webhook esperando por você.
 
-Abra o painel de conciliação: já existe ali um **pedido pago pré-semeado** com histórico de webhook. Clique **"reenviar este webhook"**. Em segundos o contador daquele pedido vira **`processado 1× · idempotência bloqueou 1×`**, o log registra o veredito **`duplicata_ignorada`**, e o valor **não dobra**. Sem login, sem gerar nada.
+![A demonstração: reenviar o mesmo webhook e ver a idempotência bloquear a duplicata, com o contador indo de `bloqueado 0×` para `bloqueado 1×` e o valor sem dobrar.](./docs/demo.gif)
 
-<!-- Hero visual: GIF de ~3s da demonstração (reenviar webhook → contador "processado 1× / bloqueado 1×"). -->
+### A demonstração, em 10 segundos
 
-> 🎞️ _Placeholder do GIF da demonstração — a ser adicionado em `docs/demo.gif` quando o front estiver no ar._
+No painel já existe um **pedido pago pré-semeado**. Clique em **"reenviar este webhook"**.
+O contador daquele pedido vira **`processado 1× · idempotência bloqueou 1×`**, o log registra
+o veredito **`duplicata_ignorada`**, e o valor **não dobra**. Sem login, sem gerar nada.
+
+> **Demo hospedada:** não faz parte do projeto, por decisão — o `docker compose up` acima é a
+> demonstração, e roda a mesma coisa que uma versão no ar rodaria. O blueprint em
+> [`render.yaml`](./render.yaml) fica como plano B documentado e nunca exercitado.
+
+> ⚠️ **Sandbox — não processa dinheiro real.** Toda cobrança é gerada no ambiente de testes do
+> Mercado Pago. Nenhum valor real transita. Isto é um projeto de portfólio, não um produto
+> financeiro em produção.
+
+### O que já está pronto, e o que não está
+
+**Pronto e testado:** o domínio que decide se o dinheiro duplica (assinatura HMAC, idempotência,
+máquina de estados), a API inteira provada por testes de integração contra Postgres real, o front
+completo, o empacotamento em container com imagens pinadas por digest, e os ADRs.
+**Em construção:** a integração com o sandbox real do Mercado Pago (a fixture de webhook real já
+está no repositório). **Fora do escopo por decisão:** demo hospedada.
+Onde este README diz "placeholder" ou _planejado_, o item **não existe** — nada aqui afirma o contrário.
 
 ---
 
@@ -203,9 +224,7 @@ Pirâmide real, específica deste domínio:
 
 **Cobertura imposta no CI:** core ≥90% em linhas/branches/funções/statements (thresholds do vitest reprovam o run). Gate global ≥80% incluindo `apps/` é _planejado_ — entra no endurecimento do CI. CI em Node LTS. Branch protection com checks required em `main` é _planejada_ (configuração do GitHub — entra na publicação).
 
-<!-- Print da aba Actions com todos os checks required verdes. -->
-
-> 🖼️ _Placeholder do print da aba Actions (checks required verdes) — a ser adicionado quando o pipeline `ci.yml` estiver publicado._
+O estado do pipeline é o badge de CI no topo deste README — ele aponta para a aba Actions, que é a prova, não um print dela.
 
 ---
 
@@ -249,9 +268,7 @@ O design completo (spec adversarialmente revisada) está em **[`SPEC.md`](./SPEC
 
 O painel de conciliação é observabilidade de domínio de primeira classe: cada webhook vira um registro auditável com **veredito, validade de assinatura e latência em ms**. A UI deixa explícito que ações de escrita passam por rota admin separada e que o **e-mail é mascarado no backend** — transparência sobre o próprio hardening. Nos bastidores: logs estruturados JSON (pino) com **request-id** correlacionado ponta a ponta e redaction de e-mail/token/secret; health `live`/`ready` (readiness pinga o Postgres); graceful shutdown que drena requests em voo e fecha o Prisma.
 
-<!-- Screenshot do painel de conciliação (e-mail já mascarado, mostrando o hardening em ação). -->
-
-> 🖼️ _Placeholder do screenshot do painel de conciliação — a ser adicionado quando o front estiver no ar._
+![Painel de conciliação: e-mail do pagador já mascarado no backend, veredito e latência de cada webhook, e o replay demonstrativo por rota admin separada.](./docs/painel.png)
 
 ---
 
@@ -264,8 +281,7 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 ## 📄 Licença & mais
 
 - **Licença:** [MIT](./LICENSE) · **Versionamento:** SemVer (primeira release pública `v1.0.0`; CHANGELOG manual até lá, automatizado por release-please a partir dela).
-- **Perfil / hub:** `<HUB_URL>` _(placeholder do link do hub com os demais projetos)_.
-- **Outros projetos públicos:** `<PORTFOLIO_URL>` _(placeholder)_.
+- **Autor:** [github.com/LayonVolsi](https://github.com/LayonVolsi).
 
 > Este é um dos projetos públicos de portfólio de um dev full-stack BR que entrega **produto completo com segurança por padrão**. O código de negócio real fica fechado — discrição profissional, não desculpa; este projeto de escopo minúsculo mostra a **barra de execução** em código aberto.
 
@@ -273,8 +289,8 @@ Decisão **bloqueante e escrita**, não implícita: um link "no ar" que fica mud
 
 ## 🧭 Estado atual do build
 
-Para honestidade total sobre o que já está no repositório vs. o que segue este README:
+O resumo está no topo; aqui vai o detalhe, para honestidade total sobre o que já existe no repositório vs. o que este README descreve:
 
 - **Pronto e testado:** `packages/core` — o domínio puro que decide "o dinheiro duplica ou não" (assinatura HMAC, idempotência/anti-replay, máquina de estados, formatação de dinheiro); `apps/api` — o backend completo (webhook das 3 camadas, rotas admin, loja, painel de conciliação e seed), provado por testes de integração contra Postgres real; `apps/web` — o front React/Vite completo (loja, página de pagamento com QR + copia-e-cola + contador + polling pausado por Page Visibility, e painel de conciliação com o replay demonstrativo), com testes de componente (jsdom) na mesma suíte; o empacotamento em container — Dockerfiles multi-stage non-root da API e do front, `docker compose up` full-stack offline com seed determinístico, verificado ponta a ponta com hadolint/Trivy limpos e as 3 imagens-base pinadas por digest; e os documentos `SECURITY.md`, `ARCHITECTURE.md` e `adr/0001..0005`.
-- **Em construção conforme este spec:** a integração real com o sandbox do MP (fixture incluída), o deploy, o **demo ao vivo**, os badges de CI/Scorecard/deploy e os GIFs/screenshots.
+- **Em construção conforme este spec:** a integração real com o sandbox do MP (fixture incluída). O **deploy hospedado** está fora do escopo por decisão (blueprint arquivado em [`render.yaml`](./render.yaml), nunca exercitado); o GIF da demonstração está em [`docs/demo.gif`](./docs/demo.gif).
 - Onde este README diz `<...>`, "placeholder" ou _planejado_, o item **ainda não existe** — nada aqui afirma que a demo já está no ar.

@@ -33,6 +33,33 @@ const EnvSchema = z
     // e o `payerEmail` do modo real ficaria retido indefinidamente — os dois viram bloqueio de
     // deploy sem uma janela. 48h cobre qualquer avaliação real e mantém o banco enxuto.
     DEMO_RETENTION_HOURS: z.coerce.number().int().positive().max(8760).default(48),
+    // Origem EXATA do front, para o CORS. No compose não existe problema a resolver: o
+    // nginx serve o front e faz proxy de /api, então browser vê uma origem só — por isso
+    // aqui é opcional. No deploy o front vira site estático noutra origem e, sem esta
+    // variável, o browser bloqueia toda chamada da demo (que é o modo de falha silencioso
+    // mais caro: a vitrine abre e não faz nada).
+    //
+    // É ORIGEM, não URL de página: esquema + host + porta, sem caminho e sem barra final.
+    // O browser compara a origem byte a byte contra o Access-Control-Allow-Origin — um "/"
+    // sobrando não casa, e o erro aparece só no console de quem visita.
+    WEB_ORIGIN: z
+      .string()
+      .url()
+      .refine(
+        (v) => {
+          try {
+            return new URL(v).origin === v;
+          } catch {
+            return false;
+          }
+        },
+        {
+          message:
+            'WEB_ORIGIN deve ser uma ORIGEM exata (esquema + host [+ porta]), sem caminho ' +
+            'nem barra final — o browser compara byte a byte',
+        },
+      )
+      .optional(),
     PAYMENT_PROVIDER: z.enum(['mock', 'mercadopago']).default('mock'),
     // Consentimento EXPLÍCITO para rodar com provedor falso. Fail-closed (default false):
     // o mock só entra se alguém pedir por escrito, em qualquer NODE_ENV.
@@ -61,6 +88,16 @@ const EnvSchema = z
     // (`2034 Invalid users involved`/`4390 Payer email forbidden`) — por isso o
     // valor é configurável, não hardcoded. É PII fraca: nunca interpolar em log/erro.
     MP_TEST_PAYER_EMAIL: z.string().email().optional(),
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || env.WEB_ORIGIN !== undefined, {
+    // Em produção front e API ficam em origens diferentes (site estático + serviço web).
+    // Sem WEB_ORIGIN a API sobe "saudável" e o front não consegue falar com ela: o health
+    // check passa, a home carrega, e cada ação morre no CORS. Fail-fast no boot em vez de
+    // uma vitrine muda que parece funcionando.
+    message:
+      'WEB_ORIGIN é obrigatório em produção (front e API ficam em origens diferentes; ' +
+      'sem ele o browser bloqueia toda chamada do front)',
+    path: ['WEB_ORIGIN'],
   })
   .refine((env) => env.PAYMENT_PROVIDER !== 'mock' || env.ALLOW_MOCK_PROVIDER, {
     // Trava PRIMÁRIA do mock: independe de NODE_ENV, e por isso não é contornável por um

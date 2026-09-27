@@ -8,7 +8,17 @@ import type { AdminActionResult, OrderView, PanelView } from './types';
  * abuso é o rate-limit agressivo do servidor).
  */
 
-const BASE = '/api/v1';
+/**
+ * Origem da API. Vazio (default) = mesma origem — é o caso do compose, onde o nginx serve
+ * o front e faz proxy de /api. No deploy o front é estático noutra origem e precisa da URL
+ * absoluta, injetada no build por `VITE_API_URL` (Vite baked, não runtime). A barra final é
+ * removida para não produzir `//api/v1`, que alguns proxies tratam como caminho diferente.
+ */
+const API_ORIGIN: string = ((import.meta.env['VITE_API_URL'] as string | undefined) ?? '').replace(
+  /\/+$/,
+  '',
+);
+const BASE = `${API_ORIGIN}/api/v1`;
 const DEMO_TOKEN: string = (import.meta.env['VITE_DEMO_TOKEN'] as string | undefined) ?? '';
 
 export class ApiError extends Error {
