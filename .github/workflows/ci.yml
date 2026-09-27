@@ -57,6 +57,9 @@ jobs:
       - run: pnpm --filter "./packages/*" build
       - run: pnpm lint
       - run: pnpm format:check
+      # Trechos de código da "trilha da decisão" no painel são EXTRAÍDOS do servidor;
+      # reprova se o arquivo gerado não bate com o código que roda (ou se falta trecho).
+      - run: pnpm check:trilha
       - run: pnpm typecheck
       - run: pnpm build
 

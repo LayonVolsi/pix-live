@@ -45,4 +45,6 @@ export interface PanelView {
 
 export interface AdminActionResult {
   readonly verdict: string;
+  /** Passos que o servidor executou, na ordem (ver `TrilhaDaDecisao`). */
+  readonly trail?: readonly string[];
 }

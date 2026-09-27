@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -111,5 +111,40 @@ describe('Painel de conciliação', () => {
     expect(reenviarMock).toHaveBeenCalledWith('evt-1');
 
     resolver({ verdict: 'duplicata_ignorada' });
+  });
+
+  it('depois do reenvio, mostra a trilha do SERVIDOR: cada passo em frase, e o código ao abrir', async () => {
+    painelMock.mockResolvedValue(VIEW);
+    reenviarMock.mockResolvedValue({
+      verdict: 'duplicata_ignorada',
+      trail: [
+        'assinatura_conferida',
+        'pedido_localizado',
+        'credito_ja_existe',
+        'provedor_nao_consultado',
+        'nao_creditei_de_novo',
+        'auditoria_gravada',
+        'passo_que_o_front_nao_conhece',
+      ],
+    });
+    render(renderPainel());
+
+    expect(screen.queryByTestId('trilha-da-decisao')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: /reenviar este webhook/i }));
+
+    const trilha = await screen.findByTestId('trilha-da-decisao');
+    expect(within(trilha).getByText(/já foi creditado antes/i)).toBeDefined();
+    expect(within(trilha).getByText(/nem precisei perguntar ao mercado pago/i)).toBeDefined();
+    expect(within(trilha).getByText(/não creditei de novo/i)).toBeDefined();
+    // Cada passo abre no trecho real extraído do servidor, com link para a linha.
+    const passos = within(trilha).getAllByRole('listitem');
+    expect(passos).toHaveLength(7);
+    const codigo = passos[2]!.querySelector('code');
+    expect(codigo?.textContent).toContain('orderCredit.findUnique');
+    expect(passos[2]!.querySelector('a')?.getAttribute('href')).toMatch(
+      /github\.com\/LayonVolsi\/pix-live\/blob\/main\/apps\/api\/src\/webhook\/webhook\.service\.ts#L\d+-L\d+$/,
+    );
+    // Passo desconhecido é DECLARADO, nunca some em silêncio.
+    expect(within(trilha).getByText(/passo não reconhecido/i)).toBeDefined();
   });
 });

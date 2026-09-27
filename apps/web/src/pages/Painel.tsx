@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { StatusBadge } from '../components/StatusBadge';
+import { TrilhaDaDecisao } from '../components/TrilhaDaDecisao';
 import { VerdictBadge } from '../components/VerdictBadge';
 
 /** Polling do painel: 3s, pausado quando a aba perde o foco (Page Visibility). */
@@ -124,6 +125,10 @@ export function Painel(): ReactElement {
           </tbody>
         </table>
       </div>
+
+      {reenviar.data?.trail !== undefined && reenviar.data.trail.length > 0 ? (
+        <TrilhaDaDecisao trail={reenviar.data.trail} />
+      ) : null}
 
       <h2 className="mt-10 font-mono text-xs uppercase tracking-[0.25em] text-tinta-fraca">
         trilha de webhooks · últimos {events.length}

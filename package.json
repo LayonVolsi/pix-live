@@ -26,6 +26,8 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "check:disclosure": "node scripts/check-disclosure.mjs",
+    "gerar:trilha": "node scripts/gerar-trilha.mjs",
+    "check:trilha": "node scripts/gerar-trilha.mjs --conferir",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
