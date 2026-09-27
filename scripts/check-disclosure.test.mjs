@@ -62,6 +62,24 @@ describe('gate de divulgação', () => {
       expect(() => execFileSync('node', [SCRIPT], { cwd: repo, stdio: 'pipe' })).not.toThrow();
     });
 
+    it('texto com byte nulo no topo NÃO escapa: a isenção exige extensão de binário', () => {
+      writeFileSync(
+        join(repo, 'LEIA.md'),
+        Buffer.concat([Buffer.from('\0'), Buffer.from('Um projeto wow para impressionar.\n')]),
+      );
+      execFileSync('git', ['add', '-A'], { cwd: repo });
+
+      let exitCode = 0;
+      try {
+        execFileSync('node', [SCRIPT], { cwd: repo, stdio: 'pipe' });
+      } catch (err) {
+        exitCode = err.status;
+      }
+      expect(exitCode).toBe(1);
+      rmSync(join(repo, 'LEIA.md'));
+      execFileSync('git', ['add', '-A'], { cwd: repo });
+    });
+
     it('arquivo de TEXTO com a mesma palavra continua reprovando (a isenção é só de binário)', () => {
       writeFileSync(join(repo, 'notas.md'), 'Um projeto wow para impressionar.\n');
       execFileSync('git', ['add', '-A'], { cwd: repo });

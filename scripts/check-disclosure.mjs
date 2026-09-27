@@ -91,6 +91,8 @@ export function scanText(text, label) {
   return hits;
 }
 
+const BINARIOS = /\.(gif|png|jpe?g|webp|ico|woff2?|ttf|otf|pdf)$/i;
+
 function main() {
   const range = process.argv[2]; // opcional: ex. origin/main..HEAD
   const hits = [];
@@ -109,7 +111,9 @@ function main() {
     // Binário (imagem, GIF): mesma heurística do git — byte nulo nos primeiros 8 KB. Ler
     // binário como utf8 NÃO lança; sem isto o gate varria os bytes de docs/demo.gif e uma
     // sequência aleatória casou "wow" (falso positivo que reprovaria o CI de qualquer GIF).
-    if (bytes.subarray(0, 8192).includes(0)) continue;
+    // As DUAS condições (revisão da branch): extensão de binário conhecida E byte nulo. Só o
+    // byte nulo abria bypass — um `\0` no topo de um README escondia o texto inteiro do gate.
+    if (BINARIOS.test(file) && bytes.subarray(0, 8192).includes(0)) continue;
     hits.push(...scanText(bytes.toString('utf8'), file));
   }
 
