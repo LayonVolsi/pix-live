@@ -4,11 +4,10 @@
 
 **Checkout Pix que não duplica dinheiro.** Reenvie o mesmo webhook e veja, ao vivo, a idempotência bloquear a segunda entrega — a prova de que "dinheiro não some", no idioma do cliente.
 
-<!-- O badge de Scorecard só acende após o primeiro run da OpenSSF. Nenhum badge aqui anuncia algo que não existe — ver "Estado atual do build". -->
+<!-- Nenhum badge aqui anuncia algo que não existe. O de OpenSSF Scorecard entra quando o workflow do Scorecard existir (ver roadmap) — antes disso ele renderiza "invalid repo path". -->
 
 [![CI](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml/badge.svg)](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml)
 [![Cobertura](https://img.shields.io/badge/cobertura-core%20%E2%89%A590%25%20imposto%20no%20CI-brightgreen)](https://github.com/LayonVolsi/pix-live/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/LayonVolsi/pix-live/badge)](https://securityscorecards.dev/viewer/?uri=github.com/LayonVolsi/pix-live)
 [![Licença: MIT](https://img.shields.io/github/license/LayonVolsi/pix-live)](./LICENSE)
 [![Último commit](https://img.shields.io/github/last-commit/LayonVolsi/pix-live)](https://github.com/LayonVolsi/pix-live/commits)
 
