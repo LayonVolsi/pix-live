@@ -49,6 +49,33 @@ describe('gate de divulgação', () => {
 
       expect(() => execFileSync('node', [SCRIPT], { cwd: repo, stdio: 'pipe' })).not.toThrow();
     });
+
+    it('binário é pulado: bytes de imagem que por acaso formam uma palavra não reprovam', () => {
+      writeFileSync(join(repo, 'README.md'), 'Checkout Pix com webhook assinado.\n');
+      // Cabeçalho de GIF + byte nulo + a sequência que o padrão de marketing casaria.
+      writeFileSync(
+        join(repo, 'demo.gif'),
+        Buffer.concat([Buffer.from('GIF89a\0\0'), Buffer.from(' wow ')]),
+      );
+      execFileSync('git', ['add', '-A'], { cwd: repo });
+
+      expect(() => execFileSync('node', [SCRIPT], { cwd: repo, stdio: 'pipe' })).not.toThrow();
+    });
+
+    it('arquivo de TEXTO com a mesma palavra continua reprovando (a isenção é só de binário)', () => {
+      writeFileSync(join(repo, 'notas.md'), 'Um projeto wow para impressionar.\n');
+      execFileSync('git', ['add', '-A'], { cwd: repo });
+
+      let exitCode = 0;
+      try {
+        execFileSync('node', [SCRIPT], { cwd: repo, stdio: 'pipe' });
+      } catch (err) {
+        exitCode = err.status;
+      }
+      expect(exitCode).toBe(1);
+      rmSync(join(repo, 'notas.md'));
+      execFileSync('git', ['add', '-A'], { cwd: repo });
+    });
   });
 
   describe('casa a IDEIA, não só a palavra', () => {

@@ -100,13 +100,17 @@ function main() {
     // ambos casariam a si mesmos. Isentar os dois é o que os torna testáveis de verdade.
     if (file === 'scripts/check-disclosure.mjs' || file === 'scripts/check-disclosure.test.mjs')
       continue;
-    let content;
+    let bytes;
     try {
-      content = readFileSync(file, 'utf8');
+      bytes = readFileSync(file);
     } catch {
-      continue; // binário/ilegível
+      continue; // ilegível
     }
-    hits.push(...scanText(content, file));
+    // Binário (imagem, GIF): mesma heurística do git — byte nulo nos primeiros 8 KB. Ler
+    // binário como utf8 NÃO lança; sem isto o gate varria os bytes de docs/demo.gif e uma
+    // sequência aleatória casou "wow" (falso positivo que reprovaria o CI de qualquer GIF).
+    if (bytes.subarray(0, 8192).includes(0)) continue;
+    hits.push(...scanText(bytes.toString('utf8'), file));
   }
 
   for (const { sha, body } of commitMessages(range)) {
