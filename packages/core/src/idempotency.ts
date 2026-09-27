@@ -34,6 +34,7 @@ export interface WebhookEvaluation {
  * sabe agora. O rótulo nunca abre crédito novo — o caminho de crédito segue
  * gateado por verdictResultsInCredit + constraint no banco.
  */
+// trilha-inicio: nao_creditei_de_novo, sem_credito, horario_suspeito
 export function decideVerdict(e: WebhookEvaluation): Verdict {
   if (!e.signatureValid) return 'assinatura_invalida';
   if (e.requestIdAlreadyProcessed) return 'duplicata_ignorada';
@@ -42,6 +43,7 @@ export function decideVerdict(e: WebhookEvaluation): Verdict {
   if (!e.tsWithinWindow) return 'ts_suspeito';
   return 'processado';
 }
+// trilha-fim: nao_creditei_de_novo, sem_credito, horario_suspeito
 
 /**
  * A consulta ao provedor é necessária para decidir este evento?

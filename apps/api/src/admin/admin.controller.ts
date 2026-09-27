@@ -1,5 +1,6 @@
 import { Controller, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { PassoTrilha } from '../webhook/webhook.service.js';
 import { AdminService } from './admin.service.js';
 import { DemoTokenGuard } from './demo-token.guard.js';
 
@@ -17,15 +18,19 @@ export class AdminController {
 
   @Post('orders/:publicRef/simulate')
   @HttpCode(200)
-  async simulate(@Param('publicRef') publicRef: string): Promise<{ verdict: string }> {
+  async simulate(
+    @Param('publicRef') publicRef: string,
+  ): Promise<{ verdict: string; trail: readonly PassoTrilha[] }> {
     const outcome = await this.admin.simulate(publicRef);
-    return { verdict: outcome.verdict };
+    return { verdict: outcome.verdict, trail: outcome.trail };
   }
 
   @Post('webhook-events/:id/replay')
   @HttpCode(200)
-  async replay(@Param('id') id: string): Promise<{ verdict: string }> {
+  async replay(
+    @Param('id') id: string,
+  ): Promise<{ verdict: string; trail: readonly PassoTrilha[] }> {
     const outcome = await this.admin.replay(id);
-    return { verdict: outcome.verdict };
+    return { verdict: outcome.verdict, trail: outcome.trail };
   }
 }

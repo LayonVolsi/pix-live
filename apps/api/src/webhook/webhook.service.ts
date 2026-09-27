@@ -36,9 +36,38 @@ export interface WebhookInput {
   readonly source?: WebhookSource;
 }
 
+/**
+ * A TRILHA DA DECISÃO: os passos que o processamento de fato executou, na ordem.
+ * Lista FECHADA de identificadores — nenhum texto livre, nenhum dado do evento. A
+ * rota admin devolve a trilha para a UI mostrar o que aconteceu naquela entrega
+ * (a frase e o trecho de código de cada passo moram no front; o trecho é
+ * extraído deste arquivo por `scripts/gerar-trilha.mjs`, entre os marcadores
+ * `trilha:`, e o CI reprova se ficar desatualizado). A rota PÚBLICA do webhook não
+ * devolve a trilha: ao provedor, resposta mínima e uniforme.
+ */
+export const PASSOS_TRILHA = [
+  'assinatura_conferida',
+  'pedido_localizado',
+  'pedido_nao_localizado',
+  'aviso_repetido',
+  'credito_ja_existe',
+  'provedor_consultado',
+  'provedor_nao_consultado',
+  'valor_confere',
+  'valor_divergente',
+  'horario_suspeito',
+  'credito_registrado',
+  'credito_bloqueado_pelo_banco',
+  'nao_creditei_de_novo',
+  'sem_credito',
+  'auditoria_gravada',
+] as const;
+export type PassoTrilha = (typeof PASSOS_TRILHA)[number];
+
 export interface WebhookOutcome {
   readonly status: number;
   readonly verdict: Verdict;
+  readonly trail: readonly PassoTrilha[];
 }
 
 /**
@@ -63,6 +92,7 @@ export class WebhookService {
     const secret = this.config.get<string>('MP_WEBHOOK_SECRET') ?? '';
 
     // ── Camada 1 (autenticidade). SHORT-CIRCUIT: zero I/O se falhar.
+    // trilha-inicio: assinatura_conferida
     const sig = verifySignature({
       signatureHeader: input.signatureHeader ?? '',
       requestId: input.requestId ?? '',
@@ -74,6 +104,7 @@ export class WebhookService {
       this.logger.warn('Webhook rejeitado na Camada 1 (assinatura inválida) — sem I/O');
       throw new UnauthorizedException('assinatura inválida');
     }
+    // trilha-fim: assinatura_conferida
 
     // Sem guard de tamanho: as colunas de auditoria são TEXT (ver schema) e a
     // entrada é limitada pelo teto de header do Node + cap de corpo de 32KB.
@@ -88,22 +119,32 @@ export class WebhookService {
     const startedAt = performance.now();
     const source = input.source ?? WebhookSource.mercadopago;
     const { dataId } = input;
+    const trail: PassoTrilha[] = ['assinatura_conferida'];
 
     // ── Fatos do banco PRIMEIRO (o core decide; a rota só apura). A ordem importa:
     // eles determinam se a consulta ao provedor é sequer necessária (ver abaixo).
+    // trilha-inicio: pedido_localizado, pedido_nao_localizado
     const order = await this.prisma.order.findUnique({ where: { mpPaymentId: dataId } });
+    // trilha-fim: pedido_localizado, pedido_nao_localizado
+    trail.push(order !== null ? 'pedido_localizado' : 'pedido_nao_localizado');
     // Dedupe da Camada 2 por request-id. Se o header vier ausente (atípico do MP),
     // o dedupe não se aplica — mas o dinheiro CONTINUA protegido pela Camada 3
     // (creditAlreadyExists + unique em OrderCredit.mpPaymentId). NÃO usamos um
     // sentinela compartilhado (ex.: '') para requestId nulo: isso colidiria
     // pagamentos DIFERENTES sem request-id entre si — pior que o gap. (Review, finding 2.)
+    // trilha-inicio: aviso_repetido
     const requestIdAlreadyProcessed =
       input.requestId !== null &&
       (await this.prisma.webhookEvent.findFirst({
         where: { source, requestIdHeader: input.requestId },
       })) !== null;
+    // trilha-fim: aviso_repetido
+    if (requestIdAlreadyProcessed) trail.push('aviso_repetido');
+    // trilha-inicio: credito_ja_existe
     const creditAlreadyExists =
       (await this.prisma.orderCredit.findUnique({ where: { mpPaymentId: dataId } })) !== null;
+    // trilha-fim: credito_ja_existe
+    if (creditAlreadyExists) trail.push('credito_ja_existe');
     const tsWithinWindow = ts !== null && isTimestampWithinWindow(Number(ts), Date.now());
 
     // ── Consulta AUTENTICADA ao provedor (status/valor confiáveis, nunca o corpo),
@@ -113,6 +154,7 @@ export class WebhookService {
     // replay de um pedido já creditado (o caminho da demonstração, acionável por qualquer
     // visitante) passa a custar ZERO chamada externa.
     let remote: RemotePayment | null = null;
+    // trilha-inicio: provedor_nao_consultado
     if (
       remoteLookupNeeded({
         signatureValid: true,
@@ -121,6 +163,7 @@ export class WebhookService {
         tsWithinWindow,
       })
     ) {
+      // trilha-fim: provedor_nao_consultado
       // O webhook GENUÍNO do MP nunca é orçado (é o caminho do dinheiro, e já vem
       // limitado a montante: o MP só notifica sobre cobranças que nós criamos).
       // O REPLAY é outra história: é acionável por qualquer visitante (o demo-token
@@ -138,7 +181,9 @@ export class WebhookService {
       }
 
       try {
+        // trilha-inicio: provedor_consultado
         remote = await this.provider.getPayment(dataId);
+        // trilha-fim: provedor_consultado
       } catch (error) {
         // Erro transitório de rede/infra ≠ "não existe": devolve 500 para o MP
         // reentregar. NÃO persiste evento aqui — uma linha `erro` chaveada por
@@ -150,6 +195,9 @@ export class WebhookService {
         );
         throw new InternalServerErrorException();
       }
+      trail.push('provedor_consultado');
+    } else {
+      trail.push('provedor_nao_consultado');
     }
 
     let verdict: Verdict = decideVerdict({
@@ -172,17 +220,29 @@ export class WebhookService {
         this.logger.error(`pagamento não corresponde ao pedido (${mismatch}) — crédito recusado`);
         verdict = 'dados_divergentes';
       }
+      trail.push(mismatch === null ? 'valor_confere' : 'valor_divergente');
     }
+    if (verdict === 'ts_suspeito') trail.push('horario_suspeito');
 
     // ── Camada 3: crédito idempotente (só quando o veredito credita E há pedido/pagamento).
     if (verdictResultsInCredit(verdict) && order !== null && remote !== null) {
       const applied = await this.applyPayment(order, dataId, remote.status);
       if (applied === 'duplicate') verdict = 'duplicata_ignorada';
+      trail.push(
+        applied === 'credited'
+          ? 'credito_registrado'
+          : applied === 'duplicate'
+            ? 'credito_bloqueado_pelo_banco'
+            : 'sem_credito',
+      );
+    } else {
+      trail.push(verdict === 'duplicata_ignorada' ? 'nao_creditei_de_novo' : 'sem_credito');
     }
 
     // ── Auditoria em statement SEPARADO da transação de crédito (sobrevive ao P2002).
     await this.recordEvent(input, source, dataId, ts, verdict, order?.id ?? null, startedAt);
-    return { status: httpStatusForVerdict(verdict), verdict };
+    trail.push('auditoria_gravada');
+    return { status: httpStatusForVerdict(verdict), verdict, trail };
   }
 
   /** O orçamento de saída só faz sentido quando a chamada custa algo a alguém. */
@@ -202,6 +262,7 @@ export class WebhookService {
    * não nasceu deste fluxo.
    */
   private paymentMismatch(order: Order, remote: RemotePayment): string | null {
+    // trilha-inicio: valor_confere, valor_divergente
     if (remote.amountCents !== order.amountCents) {
       // Nunca loga o valor absoluto junto do id do pedido — só o fato.
       return 'valor divergente';
@@ -210,6 +271,7 @@ export class WebhookService {
       return 'referência externa divergente';
     }
     return null;
+    // trilha-fim: valor_confere, valor_divergente
   }
 
   /**
@@ -225,6 +287,7 @@ export class WebhookService {
   ): Promise<'credited' | 'duplicate' | 'no_credit'> {
     const transition = nextOrderStatus(order.status, mpStatus);
     if (transition.next === 'paid') {
+      // trilha-inicio: credito_registrado, credito_bloqueado_pelo_banco
       try {
         await this.prisma.$transaction(async (tx) => {
           await tx.orderCredit.create({
@@ -240,6 +303,7 @@ export class WebhookService {
         if (this.isUniqueViolation(error)) return 'duplicate';
         throw error;
       }
+      // trilha-fim: credito_registrado, credito_bloqueado_pelo_banco
     }
     if (transition.changed) {
       // Optimistic lock: só altera se o status ainda for o que lemos. Não clobbera
@@ -264,6 +328,7 @@ export class WebhookService {
   ): Promise<void> {
     const processingMs = Math.round(performance.now() - startedAt);
     try {
+      // trilha-inicio: auditoria_gravada
       await this.prisma.webhookEvent.create({
         data: {
           source,
@@ -278,6 +343,7 @@ export class WebhookService {
           rawBody: input.rawBody, // persistido só para assinatura válida (anti-flood)
         },
       });
+      // trilha-fim: auditoria_gravada
     } catch (error) {
       if (this.isUniqueViolation(error)) {
         // Reentrega EXATA (mesmo source+request-id) já auditada — idempotente.

@@ -66,6 +66,15 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
   it('simular confirmação credita e marca o pedido como pago', async () => {
     const out = await admin.simulate(publicRef);
     expect(out.verdict).toBe('processado');
+    // A trilha do PRIMEIRO processamento: perguntou ao provedor, conferiu o valor, creditou.
+    expect(out.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_localizado',
+      'provedor_consultado',
+      'valor_confere',
+      'credito_registrado',
+      'auditoria_gravada',
+    ]);
     expect(await prisma.orderCredit.count()).toBe(1);
     const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     expect(order.status).toBe('paid');
@@ -78,6 +87,17 @@ describe.skipIf(!HAS_DB)('AdminService (integração, Postgres real)', () => {
     });
     const replayed = await admin.replay(processed.id);
     expect(replayed.verdict).toBe('duplicata_ignorada');
+    // A trilha da DEMONSTRAÇÃO é a que o painel mostra: o crédito já existe, então o
+    // provedor NÃO é consultado (custo zero) e nada é creditado de novo. Se alguém
+    // mover a consulta ao provedor para antes do dedupe, esta linha fica vermelha.
+    expect(replayed.trail).toEqual([
+      'assinatura_conferida',
+      'pedido_localizado',
+      'credito_ja_existe',
+      'provedor_nao_consultado',
+      'nao_creditei_de_novo',
+      'auditoria_gravada',
+    ]);
     expect(await prisma.orderCredit.count()).toBe(1);
     // O replay foi gravado com source=admin_replay (isolamento da origem).
     const adminEvent = await prisma.webhookEvent.findFirst({ where: { source: 'admin_replay' } });
