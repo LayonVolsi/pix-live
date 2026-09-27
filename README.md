@@ -24,13 +24,20 @@ docker compose up     # sobe Postgres + migrações + seed + API + front
 Abra **http://localhost:8080** → painel de conciliação. Sem chave de API, sem internet,
 sem cadastro: o seed já deixa um pedido pago com histórico de webhook esperando por você.
 
-![A demonstração: reenviar o mesmo webhook e ver a idempotência bloquear a duplicata, com o contador indo de `bloqueado 0×` para `bloqueado 1×` e o valor sem dobrar.](./docs/demo.gif)
+![A demonstração: reenviar o mesmo aviso de pagamento, o contador indo de `bloqueado 0×` para `bloqueado 1×`, e a trilha mostrando passo a passo por que o valor não dobrou — com o código de cada passo ao abrir.](./docs/demo.gif)
 
 ### A demonstração, em 10 segundos
 
 No painel já existe um **pedido pago pré-semeado**. Clique em **"reenviar este webhook"**.
 O contador daquele pedido vira **`processado 1× · idempotência bloqueou 1×`**, o log registra
 o veredito **`duplicata_ignorada`**, e o valor **não dobra**. Sem login, sem gerar nada.
+
+Logo abaixo aparece **o que o sistema acabou de fazer**, passo a passo, em português comum:
+conferiu a assinatura, achou o pedido, viu que o pagamento já tinha sido creditado, nem precisou
+perguntar ao Mercado Pago, e não creditou de novo. **Cada passo abre no trecho de código real
+que o executou**, com o link para a linha no repositório. A lista de passos vem do servidor, na
+ordem em que ele decidiu; os trechos são extraídos do código por um script, e o CI reprova se
+ficarem desatualizados.
 
 > **Demo hospedada:** não faz parte do projeto, por decisão — o `docker compose up` acima é a
 > demonstração, e roda a mesma coisa que uma versão no ar rodaria. O blueprint em
